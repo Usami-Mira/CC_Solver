@@ -1,4 +1,4 @@
-# CC_Integrater — 多 Agent 协作物理解题系统
+# CC_Solver — 多 Agent 协作物理解题系统
 
 ## 简介
 
