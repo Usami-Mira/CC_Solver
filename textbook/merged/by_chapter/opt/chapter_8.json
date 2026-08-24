@@ -1,0 +1,184 @@
+{
+  "book": "opt",
+  "chapter": "8",
+  "content": [
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": null,
+      "title": "像的亮度、照度和主观亮度",
+      "content": "人们往往笼统地谈论光具组成像的亮暗,其实仔细分析起来,这里有两个不同的概念,其一是像的照度,另一是像的亮度。\n\n决定照相底片感光程度的,是投射在每个面之上总光通量的多少,因此这里是像的照度问题。目视光学仪器的像是眼睛视察的对象,而瞳孔只接收一定立体角内的光通量。也就是说,从每个面元发出的总光通量中有多少能进入瞳孔,要看单位立体角内光通量的多少。因此这里是像的亮度问题。投影仪器的问题要复杂一些,这里的问题有两个方面,一是投影仪器在幕上成的像,另一是观众所看到经幕反射的像。前者是照度问题,后者是亮度问题,但二者有联系。若屏幕是理想的漫射体,不管投射到其上的光通量的角分布如何,反射光总是服从朗伯定律的。这时反射光的亮度又与入射光的照度有如下关系:\n\n$$\nB = \\frac {E}{\\pi}.\\tag{2.78}\n$$\n\n这公式请读者可以自己推导出来。\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": "1",
+      "title": "像的亮度",
+      "content": "![](images/33ca04df917b3fdbad8d40c03bd98c3560136f88b2bae898f5a19d18ea5163cb.jpg)\n\n![](images/898b81e5d3141bab813742150854e811678ceb4b27a400769eff4b33ad694ac1.jpg)\n\n如图2-64所示，设 $y$ 、 $\\sigma, B, u_0, n$ 分别为傍轴小物的线度、面积、亮度和入射图2-64像的亮度和照度\n\n孔径角、物方折射率， $y^{\\prime}$ 、 $\\sigma^{\\prime}$ 、 $B^{\\prime}$ 、 $u_{0}^{\\prime}$ ， $n^{\\prime}$ 为像方的相应量，则射进光瞳的光通量为\n\n$$\n\\Phi = \\int B \\sigma \\cos u d \\Omega = \\int_ {0} ^ {u _ {0}} B \\sigma \\cos u \\sin u d u \\int_ {0} ^ {2 \\pi} d \\varphi ,\n$$\n\n对于朗伯体，上式给出\n\n$$\n\\Phi = \\pi B \\sigma \\sin^ {2} u _ {0} \\quad \\text {或} \\quad B = \\frac {\\Phi}{\\pi \\sigma \\sin^ {2} u _ {0}}.\\tag{2.79}\n$$\n\n同理，由出射光瞳射出的光通量为\n\n$$\n\\Phi^ {\\prime} = \\pi B ^ {\\prime} \\sigma^ {\\prime} \\sin^ {2} u _ {0} ^ {\\prime} \\quad \\text {或} \\quad B ^ {\\prime} = \\frac {\\Phi^ {\\prime}}{\\pi \\sigma^ {\\prime} \\sin^ {2} u _ {0} ^ {\\prime}}.\\tag{2.80}\n$$\n\n(2.80) 式除以 (2.79) 式, 得\n\n$$\n\\frac {B ^ {\\prime}}{B} = \\frac {\\Phi^ {\\prime} \\sin^ {2} u _ {0} \\sigma}{\\Phi \\sin^ {2} u _ {0} ^ {\\prime} \\sigma^ {\\prime}}.\\tag{2.81}\n$$\n\n当光线在光具组内遇到折射面时, 总有一部分光通量被反射掉, 玻璃内也或多或少有些吸收, 所以一般 $\\Phi' < \\Phi$ , 通常把二者之比称为光具组的透光系数, 用 k 来代表,\n\n$$\nk = \\frac {\\Phi^ {\\prime}}{\\Phi} \\leqslant 1.\\tag{2.82}\n$$\n\n利用正弦条件\n\n和\n\n$$\nn y \\sin u _ {0} = n ^ {\\prime} y ^ {\\prime} \\sin u _ {0} ^ {\\prime}\\tag{2.83}\n$$\n\n$$\n\\frac {\\sigma}{\\sigma^ {\\prime}} = \\frac {y ^ {2}}{y ^ {\\prime 2}},\\tag{2.84}\n$$\n\n由(2.81)式得\n\n$$\n\\frac {B ^ {\\prime}}{B} = k \\left(\\frac {n ^ {\\prime}}{n}\\right) ^ {2}.\\tag{2.85}\n$$\n\n以上便是像的亮度 $B'$ 与物的亮度 $B$ 间的关系。在 $n = n'$ 的情况下\n\n$$\n\\boldsymbol {B} ^ {\\prime} = k \\boldsymbol {B}\\tag{2.86}\n$$\n\n若忽略光通量在光具组中的损失, 即令 $k \\approx 1$ , 于是得到 $B' \\approx B$ 。这表明, 像的亮度与物像位置和放大率无关, 且在 $n = n'$ 的条件下近似等于物的亮度。也就是说, 光具组成像时基本上不改变像的亮度。\n\n也许读者会觉得这个结论有些意外。当像被放大的时候，来自其上单位面积的光通量减少了，为什么它的亮度不变呢？如果我们仔细思考一下，这个结论是不难理解的。因为正弦条件告诉我们：在像被放大的同时，光束的孔径变小了。①虽然来自单位面积的总光通量减少了，但它集中在较小的孔径内，从单位面积上在单位立体角内发出的光通量仍可维持不变，即亮度不变。\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": "2",
+      "title": "像的照度",
+      "content": "设想在图2-49中像平面上放置一幕，则其上像的照度为\n\n$$\nE = \\frac {\\Phi^ {\\prime}}{\\sigma^ {\\prime}} = \\pi B ^ {\\prime} \\sin^ {2} u _ {0} ^ {\\prime} = k \\pi B \\left(\\frac {n ^ {\\prime}}{n}\\right) ^ {2} \\sin^ {2} u _ {0} ^ {\\prime} = k \\pi B \\frac {\\sin^ {2} u _ {0}}{V ^ {2}},\\tag{2.87}\n$$\n\n其中 V 是横向放大率， $V^{2}=\\sigma^{\\prime}/\\sigma$ .\n\n在傍轴近似下，上式化为\n\n$$\nE = k \\pi B \\left(\\frac {n ^ {\\prime}}{n}\\right) ^ {2} u _ {0} ^ {\\prime 2} = k \\pi B \\frac {u _ {0} ^ {2}}{V ^ {2}}.\\tag{2.88}\n$$\n\n以上便是我们要推导的像的照度公式。下面分析两个有实际意义的特殊情况。\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": null,
+      "title": "(1) 像距远大于焦距的情形",
+      "content": "投影仪器属于这种情形。这时当像平面的位置在很大范围内改变时，物平面总在物方焦面附近，因此入射孔径角 $u_{0}$ 近似是个常量。由(2.87)式可以看出，幕上像的照度与横向放大率的平方（或者说像的面积）成反比。在放映电影或幻灯时，幕远了，像就放大了，但同时变暗了，这是不少读者熟悉的事实。\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": null,
+      "title": "(2) 物距远大于焦距的情形",
+      "content": "照相机和眼睛属于这种情形。这时当物体的位置在很大范围改变时，像平面（感光片或网膜）总在像方焦面附近，因此出射孔径角 $u_{0}^{\\prime}$ 近似是个常量。由(2.88)式可以看出，这时像的照度是不变的。所以当我们用照相机拍摄远近不同但亮度相同的物体时，底片的感光程度是一样的。因此，我们选择曝光时间时无需考虑物体的距离。\n\n为简单起见,我们假定照相机或眼睛的光具组是一个薄透镜,孔径光阑和光瞳就在这透镜附近,于是\n\n$$\ns ^ {\\prime} \\approx p ^ {\\prime} \\approx f ^ {\\prime} = \\frac {n ^ {\\prime}}{n} f, D \\approx D ^ {\\prime},\n$$\n\n$$\nu _ {0} ^ {\\prime} \\approx \\frac {D ^ {\\prime}}{2 p ^ {\\prime}} = \\frac {D ^ {\\prime}}{2 f ^ {\\prime}} = \\frac {n}{n ^ {\\prime}} \\frac {D ^ {\\prime}}{2 f}.\n$$\n\n式中 $D$ 、 $D'$ 为入射光瞳和出射光瞳的直径， $p'$ 的意义见图2-7。因此像的照度为\n\n$$\nE = \\frac {k \\pi B}{4} \\left(\\frac {D}{f}\\right) ^ {2}.\\tag{2.89}\n$$\n\nD 与 f 之比称为光具组的相对孔径。上式表明，像的照度 E 正此于相对孔径 D/f 的平方。一般照相机上光圈刻度的标记值 1.4、2.8、5.6、8、11、16、… 就是相对孔径的倒数 f/D。这序列中后一个数近似为前一个的 $\\sqrt{2}$ 倍，因此相对孔径按 $1/\\sqrt{2}$ 的比值递减，从而照度依次减少一半，所需曝光时间依次增加一倍。\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": "3",
+      "title": "主观亮度",
+      "content": "分布在网膜上的每个感光单元各自独立地接受光通量的刺激。扩展光源在网膜上的像的照度愈大，照射在它所复盖的面积内每个感光单元上的光通量就愈多。所以对于扩展光源，我们规定眼睛的主观亮度 $H$ 就是网膜上像的照度。\n\n用肉眼直接观察物体获得的主观亮度 $H_{0}$ ，称为天然主观亮度。扩展光源的天然主观亮度为\n\n$$\nH _ {0} \\equiv E = \\left(\\frac {n ^ {\\prime}}{n}\\right) ^ {2} \\frac {k \\pi B}{4} \\left(\\frac {D _ {\\mathrm{e}}}{f}\\right) ^ {2}.\\tag{2.90}\n$$\n\n式中 $D_{\\mathrm{e}}$ 是瞳孔的直径， $f$ 是眼睛的焦距。(2.90)式表明， $H_0$ 与物的亮度 $B$ 成正比，与光源的距离无关。\n\n当我们用目视光学仪器观察物体时，(2.90)式中的B应为仪器所成像的亮度 $B'$ 所代替。如前所述，在 $n=n'$ 时， $B'\\approx B$ 。但这是否说，通过仪器观察物体时的主观亮度总是和天然主观亮度一样呢？可以证明，望远镜和显微镜出射光瞳的直径 $D'$ 都与视角放大率M成反比。对于望远镜 $(D')^{2}=(D/M)^{2}$ ，对于显微镜，镜 $(D')^{2}\\propto(N.A./M)^{2}$ ，其中D为望远镜入射光瞳的直径，N.A.= $n\\sin u_{0}$ 称为显微镜的数值孔径。当放大率超过某一数值时（这数值称为正常放大率），出射光瞳变得比眼睛的瞳孔还小。在这种情况下，(2.90) 式中的 $D_{\\mathrm{e}}$ 应为仪器出射光瞳的直径 $D'$ 所代替, 从而主观亮度变小了。所以, 通过望远镜或显微镜观察物体时, 如果放大率小于正常放大率, 主观亮度与天然主观亮度相等; 如果放大率大于正常放大率, 主观亮度将小于天然主观亮度。高倍显微镜的放大率一般大于正常放大率, 所以它的像的主观亮度小于天然主观亮度。用高倍显微镜观察物体时, 我们感到像较暗, 便是这个道理。在这种放大率大于正常放大率的情况下, 对于给定的放大率, 主观亮度与数值孔径的平方成正比。这也是高倍显微镜需要有尽可能大的数值孔径的原因。油浸镜头有助于这一点。\n\n上面讨论的都是扩展光源的主观亮度,如果是点光源,由于其线度非常小,或位置非常远(例如星体),它在网膜上的像落在个别的感光单元上,所以来自点光源的光通量只刺激网膜上个别的感光单元,它的主观亮度不取决于像的照度,而取决于进人瞳孔总光通量。当我们用\n\n![](images/12753538a8092cc19af4097e49b28b247eb918e10a4e406dc5ad4669fc5a2e3c.jpg)  \n图2-65望远镜可增大点光源的主观亮度\n\n望远镜观察点光源时,如果它的入射光瞳愈大,它就把愈多的光通量集中起来射入观察者的瞳孔(图2-65),所以望远镜可以使点光源的主观亮度大大增加,利用望远镜观察星体,可以使星体的主观亮度增大,但不改变作为扩展光源的天空背景的主观亮度。这样一来,星体与天空背景主观亮度的对比加大了,使我们在白昼也能看到星体。\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": null,
+      "title": "本章提要",
+      "content": "1. 成像的概念\n\n(1) 成像: 入射同心光束 $\\rightarrow$ 光具组 $\\rightarrow$ 出射同心光束。\n\n(2) $\\left\\{\\begin{aligned}&实物点——发散同心光束中心,\\\\ &虚物点——会聚同心光束中心;\\end{aligned}\\right.$ $\\left\\{\\begin{aligned}&实像点——会聚同心光束中心,\\\\ &虚像点——发散同心光束中心.\\end{aligned}\\right.$\n\n(3) 物、像点一一对应, 相互共轭 $\\left\\{\\begin{array}{l}\\text {物方(物空间): 由所有物点组成的空间,}\\\\ \\text {像方(像空间): 由所有像点组成的空间。}\\end{array}\\right.$\n\n(4) $\\left\\{\\begin{aligned}&实光程——实际光线的光程,取正号,\\\\ &虚光程——光线延长线的光程,取负号。\\end{aligned}\\right.$ 物像点之间所有光线的光程相等。\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": null,
+      "title": "2. 共轴球面组傍轴成像",
+      "content": "(1) 傍轴条件:\n\n对于轴上物点， $h^{2} \\ll s^{2}$ ， $s^{\\prime 2}$ 和 $r^{2}$ 。或 $u^{2}$ ， $u^{\\prime 2}$ 和 $\\varphi^{2} \\ll 1$ 。\n\n(各量含义见图2-7)\n\n对于轴外物点， $y^{2}$ ， $y'^{2}\\ll s^{2}$ ， $s'^{2}$ 和 $r^{2}$ .\n\n(各量含义见图2-9)\n\n(2) 单个折射球面：\n\n焦距公式 $f = \\frac{n r}{n' - n}, f' = \\frac{n'r}{n' - n}, \\frac{f}{f'} = \\frac{n}{n'}$\n\n物像距公式\n\n横向放大率公式\n\n$$\nV = \\frac {y ^ {\\prime}}{y} = - \\frac {n s ^ {\\prime}}{n ^ {\\prime} s}.\n$$\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": null,
+      "title": "3. 薄透镜",
+      "content": "(1) 焦距公式: $(n, n^{\\prime}$ ——物像方折射率, $n_{\\mathrm{L}}$ ——透镜折射率)\n\n$$\n\\left\\{ \\begin{array}{l l} f = \\frac {n}{\\frac {n _ {\\mathrm{L}} - n}{r _ {1}} + \\frac {n ^ {\\prime} - n _ {\\mathrm{L}}}{r _ {2}}}, \\\\ f ^ {\\prime} = \\frac {n ^ {\\prime}}{\\frac {n _ {\\mathrm{L}} - n}{r _ {1}} + \\frac {n ^ {\\prime} - n _ {\\mathrm{L}}}{r _ {2}}} \\end{array} \\right. \\quad \\frac {f}{f ^ {\\prime}} = \\frac {n}{n ^ {\\prime}}.\n$$\n\n$n=n'\\approx1$ 时 $f=f'=\\frac{1}{(n_{L}-1)\\left(\\frac{1}{r_{1}}-\\frac{1}{r_{2}}\\right)}$ ——磨镜者公式\n\n(2) 物像关系公式：\n\n高斯公式\n\n$$\n\\frac {f ^ {\\prime}}{s ^ {\\prime}} + \\frac {f}{s} = 1. \\qquad f ^ {\\prime} = f \\text {时} \\qquad \\frac {1}{s ^ {\\prime}} + \\frac {1}{s} = \\frac {1}{f}.\n$$\n\n$$\nV = - \\frac {n s ^ {\\prime}}{n ^ {\\prime} s} = - \\frac {f s ^ {\\prime}}{f ^ {\\prime} s}. \\qquad f ^ {\\prime} = f \\text {时} \\quad V = - \\frac {s ^ {\\prime}}{s}.\n$$\n\n牛顿公式 $xx' = ff'$ . $(x = f - s, x' = f' - s')$\n\n$$\nV = - \\frac {f}{x} = - \\frac {x ^ {\\prime}}{f ^ {\\prime}}, \\qquad f ^ {\\prime} = f \\text {时} \\quad V = - \\frac {f}{x} = - \\frac {x ^ {\\prime}}{f}\n$$\n\n(3) 密接透镜组：光焦度 $P=1/f, P_{1}=1/f_{1}, P_{2}=1/f_{2}.$ $P = P_{1} + P_{2}$\n\n(4) 作图法：利用特殊共轭光线。设物像方折射率相等。\n\n① 通过光心 O 的光线方向不变。\n\n② 通过物方焦点 F 的光线 → 平行于光轴。\n\n③ 平行于光轴的光线 → 通过物方焦点 $F'$ .\n\n还可利用平行光束的共轭光束交点在焦面上的性质。\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": null,
+      "title": "4. 理想光具组理论",
+      "content": "(1) 共线变换：物方和像方点点、线线、面面一一对应。\n\n对于轴对称光具组\n\n① 光轴上的共轭点在光轴上，\n\n② 垂直光轴的平面的共轭面与光轴垂直，\n\n③ 在垂直光轴的同一平面内横向放大率相等，\n\n④ 在垂直光轴的不同平面内横向放大率一般不等；\n\n但只要有两处相等，则处处相等(望远系统)。\n\n(2) 基点, 基面:\n\n①焦点 $F$ 、 $F'$ 和焦面 $\\mathcal{F}$ 、 $\\mathcal{F}'$ ——轴上无穷远点和垂直光轴面的共轭。\n\n② 主点 $H$ 、 $H'$ 和主面 $\\mathcal{H}$ 、 $\\mathcal{H}'$\n\n——横向放大率 V=1 的共轭点和共轭面。\n\n③ 节点 N、 $N'$ ——角放大率 W=1 的共轭点。\n\n(3) 物像关系公式\n\n高斯公式\n\n$$\n\\frac {f ^ {\\prime}}{s ^ {\\prime}} + \\frac {f}{s} = 1,\n$$\n\n牛顿公式\n\n$$\n\\boldsymbol {x} \\boldsymbol {x} ^ {\\prime} = f f ^ {\\prime},\n$$\n\n横向放大率公式 $\\beta = \\frac{y'}{y} = -\\frac{f}{x} = -\\frac{fs'}{f's}$\n\n角放大率 $\\gamma = \\frac{\\tan u'}{\\tan u}$ 与横向放大率 $\\beta$ 成反比： $\\beta\\gamma = f / f'$\n\n5. 正负号法则（共轴折射光学系统）：具有人为约定性质，以下是本书采用的规定。\n\n<table><tr><td>序号</td><td>物理量符号</td><td>相对位置</td><td>正</td><td>负</td></tr><tr><td>(I)(I&#x27;)</td><td>物距s物方焦距f</td><td>轴上物点Q物方焦点F在{单折射球面顶点A薄透镜光心O理想光具组主点H</td><td>之左</td><td>之右</td></tr><tr><td>(II)(II&#x27;)</td><td>像距s&#x27;像方焦距f&#x27;</td><td>轴上像点Q&#x27;像方焦点F&#x27;在{单折射球面顶点A薄透镜光心O理想光具组主点H&#x27;</td><td>之右</td><td>之左</td></tr><tr><td>(III)</td><td>曲率半径r</td><td>球心C在折射球面顶点A</td><td>之右</td><td>之左</td></tr><tr><td>(IV)</td><td>物高y像高y&#x27;</td><td>轴外物点P轴外像点P&#x27;在光轴</td><td>之上</td><td>之下</td></tr><tr><td>(V)</td><td>光线倾角u</td><td>从光轴转向光线</td><td>逆时针</td><td>顺时针</td></tr><tr><td>(VI)</td><td>(牛顿)物距x</td><td>轴上物点Q在物方焦点F</td><td>之左</td><td>之右</td></tr><tr><td>(VII)</td><td>(牛顿)像距x&#x27;</td><td>轴上像点Q&#x27;在像方焦点F&#x27;</td><td>之右</td><td>之左</td></tr><tr><td>(VIII)</td><td>光具组间隔Δ</td><td>F2在F1&#x27;</td><td>之右</td><td>之左</td></tr><tr><td>(IX)</td><td>光具组间隔d</td><td>H2在H1&#x27;</td><td>之右</td><td>之左</td></tr></table>\n\n6. 逐次成像问题中的不变量：\n\n共轴球面组在傍轴条件下的拉格朗日-亥姆霍兹定律： $ynu = y'n'u'$ . 理想光具组的亥姆霍兹公式： $yn\\tan u = y'n'\\tan u'$\n\n7. 齐明点：折射球面的一对等光程的共轭点 $Q$ 、 $Q'$\n\n$$\n\\overline {{{Q C}}} = \\frac {n ^ {\\prime}}{n} r, \\quad \\overline {{{Q ^ {\\prime} C}}} = \\frac {n}{n ^ {\\prime}} r, (C — — \\text {球心})\n$$\n\n阿贝正弦条件：傍轴小物以任意宽光束成像的条件为\n\n$$\nn y \\sin u = n ^ {\\prime} y ^ {\\prime} \\sin u ^ {\\prime},\n$$\n\n齐明点满足阿贝正弦条件。\n\n8. 光学仪器\n\n(1) 投影仪器： $s \\approx f, s' \\gg f$\n\n(2) 照相机： $s \\gg f, s' \\approx f,$ 给定焦距 $f$, $x$ 愈小，景深愈小。\n\n(3) 眼睛：调焦靠肌肉控制晶状体曲率，调焦范围在近点和远点之间。\n明视距离 $s_{0}=25\\ cm$ .\n\n(4) 放大镜：物方在焦点附近，视角放大率 $M = \\frac{w'}{w} = \\frac{s_{0}}{f}$ ,\n\n(5) 显微镜：物镜焦距 $f_{0}$ 、目镜焦距 $f_{E} \\ll$ 光学简长 $\\Delta$ ， $M = \\frac{s_{0}\\Delta}{f_{0}f_{E}}$ .\n\n(6) 望远镜：物镜焦距 $f_{0} \\gg$ 目镜焦距 $f_{E}$ 、 $F_{0}'$ 几乎与 $F_{E}$ 重合， $M = \\frac{f_{0}}{f_{E}}$ .\n\n(7) 棱镜摄谱仪：角色散本领 $D=\\frac{\\mathrm{d}\\delta}{\\mathrm{d}\\lambda}=\\frac{2\\sin\\frac{\\alpha}{2}}{\\sqrt{1-n^{2}\\sin^{2}\\frac{\\alpha}{2}}}\\cdot\\frac{\\mathrm{d}n}{\\mathrm{d}\\lambda},(\\delta=\\delta_{\\min}$ 时）\n\n9. 光阑——光具组中的带孔屏障。\n\n(1) 孔径光阑——实际限制光束孔径的光阑。\n\n入射光瞳——孔径光阑在物方的共轭。\n\n出射光瞳——孔径光阑在像方的共轭。\n\n显微镜、望远镜的出射光瞳设置在目镜筒终端观察者瞳孔的位置。\n\n投影仪聚光镜对于待映画面的的出射光瞳设置在投影镜头的入射光瞳处。\n\n(2) 视场光阑\n—— 实际限制轴外物点射向入射光瞳中心的光线(主光线)的光阑。\n入射窗——视场光阑在物方的共轭。\n出射窗——视场光阑在像方的共轭。\n显微镜、望远镜的视场光阑设置在中间像面上。\n\n10. 单色像差：初级像差或三级像差\n\n(1) 球面像差——轴上物点以大孔径成像时形成的。\n\n减小或消除法：配曲法，胶合透镜。\n\n(2) 翣形像差——傍轴物点以宽光束成像时形成的。一起消除。\n减小或消除法:配曲法,胶合透镜。\n\n(3) 像散像场弯曲——物点离光轴较远、光束较倾斜引起的。\n\n减小法:在适当地方放置光阑。\n\n(4) 畸变——光束倾斜度较大引起的。\n\n减小法：在适当地方放置光阑。\n\n![](images/fc9b3bff4a6e606a003eec50fd24619e2d4652238c0beda1c493f6732998aa40.jpg)  \n思考题2-1\n\n11. 色像差——色散引起的。\n\n位置色差(轴向色差)，\n\nl放大率色差(横向色差)。\n\n消色差法：凸凹透镜黏合。\n\n对于目镜,只需消除放大率色差。用两个材料相同相隔距离 d 的薄透镜组成目镜,满足下列条件可消除放大率色差:\n\n$$\nd = \\frac {f _ {1} + f _ {2}}{2} (f _ {1}, f _ {2} - - - \\text { 两   透   镜   焦   距 });\n$$\n\n惠更斯目镜 $f_{1}: f_{2}: d = 3: 1: 2.$\n\n拉姆斯登目镜 $f_{1}: f_{2}: d = 1: 1: 1$ 或 $f_{1}: f_{2}: d = 1: 1: 2/3$ .\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": null,
+      "title": "12. 成像的光度学问题",
+      "content": "(1) 像的亮度 $\\frac{B'}{B} = k\\left(\\frac{n'}{n}\\right)^{2}$ (k——光具组的透光系数)\n\n$n=n'$ 时 $B'=kB\\approx B$ ，光具组成像时基本上不改变像的亮度。\n\n(2) 像的照度 $E = k\\pi B \\frac{u_{0}^{2}}{V^{2}}$ ( $u_{0}$ ——入射孔径角)\n\n投影仪： $u_{0}$ 基本上不变， $E \\propto 1/V^{2}$\n\n照相机： $E = \\frac{k\\pi B}{4}\\Big(\\frac{D}{f}\\Big)^2$ （ $D$ ——入射光瞳直径， $D / f$ ——相对孔径）\n\n(3) 主观亮度：\n\n对于扩展光源，天然主观亮度——肉眼观察时在视网膜上的照度。\n\n$H_{0}\\equiv E=\\left(\\frac{n^{\\prime}}{n}\\right)^{2}\\frac{k\\pi B}{4}\\left(\\frac{D_{e}}{f}\\right)^{2}$ ($D_{e}$ ——瞳孔直径，f——眼睛焦距)\n\n对于点光源，主观亮度 $\\propto$ 进入瞳孔的总光通量。\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": null,
+      "title": "思考题",
+      "content": "(2) 如本题图 b 所示, 若光线 1、2 平行, 经过一理想光具组后, 它们的共轭线 $1' 、 2'$ 是否一定相交? 如果有交点, 令此交点为 $P'$ , 作 $A_{1}A_{2}$ 垂直于 1、2, 光程 $(A_{1}P')$ 和 $(A_{2}P')$\n\n是否一定相等？\n\n(3) 如本题图 c 所示, 从点光源 Q 发出两根光线 1 和 2, 光线 1 经棱镜偏折, 光线 2 不经过棱镜, 两光线相交于 P, 在 Q、P 间两光线的光程是否相等?\n\n\n(1) 球面的半径大于椭球在 M 点的曲率半径，\n\n(2) 球面的半径等于椭球在 M 点的曲率半径，\n\n(3) 球面的半径小于椭球在 M 点的曲率半径。\n\n\n\n![](images/28881eb5e55a32312526d585d26bf1ab70a9dbab68ae38b5819e1490cca37a02.jpg)\n\n\n思考题2-6\n\n\n![](images/cc13c6b87f35581a64b86b2862bc5ea8c1496dc91f73980c33e5816d910d5612.jpg)\n\n\n思考题2-7\n\n此装置瞄准一个很远的发光点,使成像于屏上 O 点。讨论在下列情况中像点在屏上的移动:(1) 镜作横向平移,(2) 镜简轴线转过角度 $\\theta$ .\n\n\n\n2 - 10. 非望远系统中可能有一对以上的主面吗?\n\n![](images/34be6cb8c1fb6ead66c58354896c2f70a4ae467d6b0bba92718861ef5a75b0c3.jpg)\n\n2-11 一般说来,理想光具组能保持不与光轴垂直的平面内几何图形的相似性吗?\n\n\n思考题2-9\n\n\n\n\n\n2 - 17. 在一个大晴天,我们可以用一个放大镜把阳光会聚到焦点上,引起纸片或干木屑的燃烧。这是尽人皆知的事实。相传古代阿基米德曾用长焦距的镜子会聚日光烧毁了停泊在远处的敌舰,多少代来,这个传说一直吸引着发明家的遐想。你能用科学的论据来辨明这个传说的真伪吗?\n\n",
+      "type": "content"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "section": null,
+      "title": "习题",
+      "content": "2 - 2. 证明(2.4)式。\n\n\n\n\n\n\n![](images/536d5f83c075c21006b6723fe1acb428d0d8a1bf5e4799f9b171cef761073ea7.jpg)\n\n![](images/3f89c8bd4510ffab5bed33c0bcec978f1d3eac576747c59ec39c0d7865db136a.jpg)\n\n![](images/b198c6978198f03cf1cdd0b82bb9b84281e42a5392f62d914b6e39337bbabdbb.jpg)\n\n![](images/caf4ba0d1e18e859a01916f90b69235b2b0ef80f22f8d3d96d451fa7842634d7.jpg)  \n习题2-7\n\n\n\n体的折射率应等于多少？\n\n\n【提示：把平面看成 $r \\to \\infty$ 的球面，并利用球面折射公式计算。】\n\n\n![](images/6650f2ef49e88c90cf6cfac0e89287cd1213cf8c119b6b649b028ca8624875b8.jpg)\n\n\n习题2-10\n\n\n\n![](images/880b38ac3804167d0166a6ebe9bc9c01882046a647e98d4ade26b5bcf314a713.jpg)\n\n\n习题2-11\n\n它在空气中的焦距为 10.0cm, 它在水中的焦距为多少? (水的折射率为 4/3.)\n\n\n\n![](images/b446ad27b577799776e27b5a70e9abcd764322d7871f3179c438b9533e63fd5e.jpg)  \n习题2-17\n\n2 - 18. 一凸透镜的焦距为 $12\\mathrm{cm}$ , 填充下表中的空白, 并作出相应的光路图。\n\n<table><tr><td>物距 s/cm</td><td>-24</td><td>-12</td><td>-6.0</td><td>0</td><td>12</td><td>24</td><td>36</td></tr><tr><td>像距  $s'/cm$ </td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>横向放大率 V</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>像的虚实</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>像的正倒</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>\n\n\n<table><tr><td>物距 s/cm</td><td>-24</td><td>-12</td><td>-6.0</td><td>0</td><td>12</td><td>24</td><td>36</td></tr><tr><td>像距 s&#x27;/cm</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>横向放大率 V</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>像的虚实</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>像的正倒</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>\n\n\n\n\n(1) 这两个位置到幕的距离和透镜的焦距，\n\n(2) 两个像的横向放大率。\n\n2 - 23. 如上题, 在固定的物与幕之间移动凸透镜。证明: 要使透镜有两个成像位置, 物和幕之间的距离必须大于四倍焦距。\n\n\n![](images/966607b36bce43dd14e02e2e27605c501359fab74d88d093d4f5c86192928cc1.jpg)\n\n\n习题2-24\n\n在 $L_{1}$ 之右 5.0cm。在 $L_{1}$ 之左 10.0cm 处置一小物，求经此光学系统后所成的像的位置和横向放大率。用作图法验证计算结果。\n\n2 - 26. 用逐次成像法解 4.4 节中的例题 4, 并将结果与之比较。\n\n\n![](images/b13496dcef1c7cec9c0e546c5fd5d173cadcc734659a73e538dcb15b9b51ad56.jpg)  \n习题2-27\n\n2 - 28. 用作图法求本题图中 $PQ$ 点的像(入射线从左到右)。\n\n![](images/8bccc19da323abe41c8265bd28ae93e1ca87f1ddc77529e948b3c2a97c9bebcc.jpg)  \n习题2-28\n\n\n![](images/84c449bc29cba146a821a520b6f6bef089c08d8d9b57385e87127b4c4d8539c0.jpg)  \n习题2-29\n\n\n\n\n![](images/320e7edabbc2cb29d0554a2db7ea43d61fbdd0a7899886f371754462c7f42200.jpg)  \n习题2-30\n\n示。已知玻璃的折射率为1.500，两界面顶点间的距离为1.00cm，透镜放在空气中。\n\n\n<table><tr><td></td><td>形状</td><td> $r_1$ /cm</td><td> $r_2$ /cm</td></tr><tr><td>(1)</td><td>双凸</td><td>10.0</td><td>-10.0</td></tr><tr><td>(2)</td><td>凸凹</td><td>10.0</td><td>20.0</td></tr><tr><td>(3)</td><td>凹凸</td><td>-15.0</td><td>-20.0</td></tr></table>\n\n\n2-35.（1）用作图法求本题图中光线1的共轭线；\n\n(2) 在图上标出光具组节点 $N$ 、 $N'$ 的位置。\n\n![](images/75169af6a0d97ec2e9f4cd83f6eecd18e310b6b5708ae73b0ab01a4880e6d686.jpg)  \n习题2-35\n\n![](images/d8796fff921fde4f3e3dcceb30dbb58b491adfd3c5cb29de34e87fb891cd2862.jpg)  \n习题2-36\n\n\n\n$$\nf = \\frac {\\Delta x}{\\frac {1}{V _ {2}} - \\frac {1}{V _ {1}}}, \\quad f ^ {\\prime} = \\frac {\\Delta x ^ {\\prime}}{V _ {2} - V _ {1}}.\n$$\n\n这里提供了一种测焦距的方法,它与测焦点位置的方法配合起来,可以确定光具组的主面。\n\n\n\n\n\n\n\n\n(1) 画出伽里略型望远镜的光路，\n\n(2) 一伽里略型望远镜的物镜和目镜相距 $12\\mathrm{cm}$ , 若望远镜的放大率为 $4 \\times$ , 物镜和目镜的焦距各多少?\n\n\n\n\n$$\nD ^ {\\prime} = \\frac {D _ {0}}{| M |},\n$$\n\n其中 $M = -f_{0}/f_{E}$ 是望远镜的视角放大率。\n\n\n\n(1) 出射光瞳的位置；\n\n(2) 证明在傍轴近似下出射光瞳的直径 $D'$ 与入射孔径角 $u_0$ 的关系是①\n\n$$\nD ^ {\\prime} = \\frac {2 s _ {0} n u _ {0}}{| M |},\n$$\n\n式中 $s_{0}=25~cm$ 是明视距离，M 是显微镜的视角放大率，n 是物方折射率（除油浸物镜外， $n\\approx1$ ）。\n\n\n2a, $f_{2}=a$ , 图中标示各距离为 s=10a, l=4a, d=6a; 此外透镜与光阑半径之比是 $r_{1}=r_{2}=3r_{3}$ . 求此光具组的孔径光阑、入射光瞳、出射光瞳、入射窗和视场光阑的位置和大小。\n\n![](images/ffbd9df792cd9d9b68d174887e0aa717a434cfddb74dfa322cb88e59bb0c160c.jpg)  \n习题2-50\n\n\n(1) 向场镜 $L_{1}$ 成为孔径光阑的条件为 $D_{1} < D_{2}$ ;\n\n![](images/9fd3e262144cb3ac21f029d7a6806d5cc3f775949a1721f3067f59d828d76062.jpg)\n\n(2) 光阑 AA 成为视场光阑的条件是 $D/2 < D_{2}$ ;\n\n习题2-51\n\n(3) 这时对 $F_{2}^{\\prime}$ 点计算的出射孔径角 $u_{0}^{\\prime}$ 由下式确定：\n\n$$\n\\tan u _ {0} ^ {\\prime} = D _ {1} / 2 a.\n$$\n\n\n\n$$\nD ^ {\\prime} = \\frac {2 s _ {0} n \\sin u _ {0}}{| M |} = 2 s _ {0} \\frac {\\mathrm{N.A.}}{| M |},\n$$\n\n即 $D^{\\prime}$ 正比于数值孔径N.A. $= n\\sin u_{0}$ ，反比于视角放大率 $M$ 。 $(s_0 = 25\\mathrm{cm}$ 是明视距离。）2-54拟用冕牌玻璃K9（ $n_{\\mathrm{D}} = 1.5163, n_{\\mathrm{F}} = 1.5220, n_{\\mathrm{C}} = 1.5139$ ）和重火石玻璃F4（ $n_{\\mathrm{D}} = 1.6199, n_{\\mathrm{F}} = 1.6321, n_{\\mathrm{C}} = 1.6150$ ）来做消色差胶合透镜，焦距为 $100\\mathrm{mm}$ ，若已确定其负透镜的非黏合面为平面，试求其余各面的曲率半径。\n\n\n\n\n\n(1) 用此望远镜所能看到的最弱星等，\n\n(2) 最适宜观察星的放大率(正常放大率),\n\n(3) 当放大率为 10 倍时可见到星的等次。设眼睛瞳孔的直径值可取 3.0 mm.\n\n【注：星等增加一等，其亮度减小 $\\sqrt[5]{100} \\approx 2.5$ 倍。】\n\n2 - 59. 求数值孔径为 1.5 的显微镜的正常放大率, 设瞳孔直径为 $3.0 \\mathrm{~mm}$ .\n",
+      "type": "content"
+    }
+  ],
+  "examples": [
+    {
+      "book": "opt",
+      "chapter": "8",
+      "example_num": "1",
+      "title": "例题1 在水中深度为 $y$ 处有一发光点 $Q$ , 作 $QO$ 面垂直于水面, 求射出水面折射线的延长线与 $QO$ 交点 $O'$ 的深度 $y'$ 与入射角 $i$ 的关系 (图1-6)。",
+      "content": "解：设水相对于空气的折射率为 $n(n\\approx 4 / 3)$ ，则根据折射定律，有\n\n$$\nn \\sin i = \\sin i ^ {\\prime}.\n$$\n\n设入射角为 $i$ 的光线与水面相遇于 $M$ 点，令 $\\overline{OM} = x$ ，则\n\n$$\ny = \\frac {x}{\\tan i}, \\quad y ^ {\\prime} = \\frac {x}{\\tan i ^ {\\prime}}.\n$$\n\n于是\n\n$$\ny ^ {\\prime} = y \\frac {\\tan i}{\\tan i ^ {\\prime}} = y \\frac {\\sin i \\cos i ^ {\\prime}}{\\sin i ^ {\\prime} \\cos i} = \\frac {y \\sqrt {1 - n ^ {\\prime} \\sin^ {2} i}}{n \\cos i}.\n$$\n\n$n'$ 为空气相对于水的折射率。上式表明，由Q发出的不同方向的光线，折射后的延长线不再交于同一点。但对于那些接近法线方向的光线 $(i\\approx0)$ ，若忽略 $O(i^{2})$ 的高级小量，则 $\\sin^{2}i\\approx0,\\cos i\\approx1$ ，我们有\n\n![](images/dc92160ea1cb12da03bedd7c6145e41f371f45c360f101f9ca9f5b8885827b42.jpg)  \n图1-6例题1——水中的发光点\n\n$$\ny ^ {\\prime} = \\frac {y}{n}.\\tag{1.12}\n$$\n\n这时 $y'$ 与入射角 $i$ 无关，即折射线的延长线近似地交于同一点 $Q'$ ，其深度为点光源深度的 $1/n \\approx 3/4$ .\n",
+      "type": "example"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "example_num": "2",
+      "title": "例题2 用作图法求任意入射线在球面上的折射线。",
+      "content": "解：如图1-7，设折射球面的球心位于 $C$ 点，半径为 $r$ ，左右两边介质的折射率分别为 $n$ 和 $n^{\\prime}(n < n^{\\prime})$ 。以 $C$ 为中心，分别以 $p = (n^{\\prime} / n)r$ 和 $p^\\prime =$\n\n![](images/a61f82988131611fbc6175c5015bdf814e98b290473c2d08dc5d1335c31eeaff.jpg)  \n图1-7例题2——球面折射的光线追迹作图\n\n$(n/n')r$ 为半径作圆弧 $\\Sigma$ 和 $\\Sigma'$ . 将入射线 RM 延长, 与 $\\Sigma$ 交于 H. 联接 CH 交 $\\Sigma'$ 于 $H'$ . 联接 $MH'$ , 即为所求的折射线。以上作图法的依据如下:\n\n① 应用正弦定律于 $\\triangle HCM$ ，则有\n\n$$\n\\sin i / \\sin \\varphi = \\overline {{{C H}}} / \\overline {{{C M}}} = n ^ {\\prime} / n,\n$$\n\n② 在 $\\triangle MCH'$ 和 $\\triangle HCM$ 中有公共角 $\\angle C$ , 且\n\n$$\n\\overline {{{C H}}} / \\overline {{{C M}}} = \\overline {{{C M}}} / \\overline {{{C H ^ {\\prime}}}} = n ^ {\\prime} / n,\n$$\n\n故两三角形相似，从而 $i' = \\varphi$\n\n将 ① 与 ② 结论结合起来, 得 $\\sin i / \\sin i' = n' / n$ , 即图中 $i$ 和 $i'$ 满足折射定律。\n",
+      "type": "example"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "example_num": "3",
+      "title": "例题3 已知光纤纤芯介质的折射率的平方 $n^2$ 按抛物线函数变化：",
+      "content": "$$\n\\boldsymbol {n} ^ {2} (\\boldsymbol {r}) = \\boldsymbol {n} _ {0} ^ {2} (1 - a ^ {2} r ^ {2}),\\tag{1.18}\n$$\n\n式中 $n_0$ 是 $r = 0$ 处的折射率， $\\pmb{a}$ 为常量。试求光线轨迹。\n\n解：将(1.18)式代入(1.17)式，得\n\n$$\n\\frac {\\mathrm{d} ^ {2} r}{\\mathrm{d} z ^ {2}} + \\frac {a ^ {2}}{\\cos^ {2} \\theta_ {0}} r = 0,\n$$\n\n其解为\n\n$$\nr (z) = A \\sin \\left(\\frac {a}{\\cos \\theta_ {0}} z + \\varphi_ {0}\\right).\n$$\n\n式中 A 和 $\\varphi_{0}$ 是由初始条件 $r_{0}$ 、 $\\theta_{0}$ 决定的常量。\n\n纤维光学近20多年来得到了突飞猛进的发展，它不仅用于内窥光学系统，尤其重要的是它已成功地应用于通讯系统。自从20世纪70年代初低损耗的石英光导纤维问世以来，便开始了激光光导纤维通讯的工作。由于光纤通讯与电通讯相比有很多优点，如抗电磁干扰性强、频带宽和通讯容量大、保密性好、能节省有色金属等，近些年来，许多国家都已广泛地采用了光缆通讯。\n",
+      "type": "example"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "example_num": "4",
+      "title": "例题 4 利用光路的可逆性原理证明:棱镜产生最小偏向角的条件是光线相对于棱镜对称。",
+      "content": "证：设图1-15中光线 $1-1'$ 相对于棱镜对称。在它的附近取另一条光线 $2-2'$ ，并作与 $2-2'$ 对称的光线 $3'-3$ 。后者是由棱镜的另一侧入射的，它的逆光线 $3-3'$ 与前二者从棱镜的同一侧入射。由对称性和可逆性可知，光线 $2-2'$ 和 $3-3'$ 的偏向角是一样大的 $(\\delta_{2}=\\delta_{3})$ 。应注意，光线 $2-2'$ 和 $3-3'$ 朝相反方向偏离光线 $1-1'$ ，而它们的偏向角只能都比 $\\delta_{1}$ 大，或都比 $\\delta_{1}$ 小，亦即 $\\delta_{1}$ 是极值。(要证明这极植是极小值,必须像2.3节中那样,利用折射定律和几何关系对 $\\delta_{2}$ 或 $\\delta_{3}$ 作具体运算。仅用光路的可逆性原理是不易作出判断的。)\n\n![](images/2fde93aa92cc5a4b8477f6883f8e6e77e3b2cf3ba838b0880e9a121b8f74539f.jpg)  \n图1-15例题4——用光路的可逆性原理判断棱镜的最小偏向角\n\n上述例题告诉我们,利用光路的可逆性原理,往往可以通过很简短的推理得到某些重要的结论。\n",
+      "type": "example"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "example_num": "5",
+      "title": "例题 5 计算均匀余弦发光圆盘在轴上一点产生的垂直照度。设盘的半径为 R，亮度为 B.",
+      "content": "解：令光源面元 dS 中心 O 与被照射面元 $dS'$ 中心 $O'$ 之间的距离为 r，则\n\n$$\nr ^ {2} = r ^ {\\prime 2} + z ^ {2},\n$$\n\n![](images/fd39edc06c04084cdf404b946020e01a3789f1db5f90a1733ccf36daed88f95c.jpg)\n\n式中字母的含义见图1-35。按(1.39)式有\n\n$$\n\\begin{array}{r l} \\mathrm{d} \\Phi^ {\\prime} & = 2 \\pi B \\mathrm{d} S ^ {\\prime} \\int_ {0} ^ {R} \\frac {z ^ {2} r ^ {\\prime} \\mathrm{d} r ^ {\\prime}}{\\left(r ^ {\\prime 2} + z ^ {2}\\right) ^ {2}} \\\\ & = \\frac {\\pi r ^ {2} B \\mathrm{d} S ^ {\\prime}}{R ^ {2} + z ^ {2}}, \\end{array}\n$$\n\n图1-35例题5——圆盘光源在轴上的垂直照度\n\n而照度\n\n$$\nE = \\frac {\\mathrm{d} \\Phi^ {\\prime}}{\\mathrm{d} S ^ {\\prime}} = \\frac {\\pi r ^ {2} B}{R ^ {2} + z ^ {2}}.\\tag{1.41}\n$$\n\n当 $z \\gg R$ 时，发光圆盘可看成是发光强度 $I = \\pi r^2 B$ 的点光源， $E \\approx \\pi r^2 B / z^2$ ，亦即在此极限情形下它和点光源一样，产生的照度遵循平方反比律。\n",
+      "type": "example"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "example_num": "1",
+      "title": "例题1 凸透镜 $\\mathbf{L}_1$ 和凹透镜 $\\mathbf{L}_2$ 的焦距分别为 $20.0\\mathrm{cm}$ 和 $40.0\\mathrm{cm}$ , $\\mathbf{L}_2$ 在 $\\mathbf{L}_1$ 之右 $40.0\\mathrm{cm}$ , 傍轴小物放在 $\\mathbf{L}_1$ 之左 $30.0\\mathrm{cm}$ , 求它的像。",
+      "content": "解：（1）作图法\n\n首先根据题意,将两透镜和它们焦点的位置,以及物体的位置,按比例标在图上(图2-18a)。\n\n第一次 $QP$ 对 $\\mathbf{L}_1$ 成实像 $Q_{1}P_{1}$ （见图2-18b），第二次虚物 $Q_{1}P_{1}$ 对 $\\mathbf{L}_2$ 成实像 $P^{\\prime}Q^{\\prime}$ （见图2-18c）。两图中， $1 - 1^{\\prime}$ 都代表平行于光轴折射后通过像方焦点的光线，2- $2^{\\prime}$ 都代表通过物方焦点折射后平行于光轴的光线，黑线表示光线实际经过的部分，灰线表示它的延长线。\n\n为了把整个成像过程中由 $P$ 点发出的同心光束逐次转化的情形显示出来，我们将它的边缘光线和波面示于图2-18d中。图中清楚地显示出，这发散的同心光束经凸透镜 $\\mathbf{L}_1$ 折射后，转化为会聚到 $P_{1}$ 的同心光束。它再经凹透镜 $\\mathbf{L}_2$ 折射后，转化为会聚到 $P^{\\prime}$ 的同心光束，由于 $L_{2}$ 的发散作用，最后的光束与中间光束相比，会聚程度较小。\n",
+      "type": "example"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "example_num": "2",
+      "title": "例题2 凸透镜 $\\mathbf{L}_1$ 和 $\\mathbf{L}_2$ 及其焦点的位置示于图2-19中，将傍轴小物 $PQ$ 放在 $\\mathbf{L}_1$ 的第一焦面上，用作图法求它的像。",
+      "content": "解：由 $P$ 发出的光线经 $\\mathbf{L}_1$ 折射后，成为倾斜的平行光，它平行于通过光心的光线 $PO_{1}$ 。通过 $\\mathbf{L}_2$ 的光心作平行这光束的辅助光线 $O_2P'$ ，它与 $\\mathcal{F}_2'$ 的交点即是 $P'$ 。\n\n最后,我们在图中仍画出由P点发出的整个同心光束的两次转化过程。\n\n![](images/5ce0183d3f673b448f95c7bdc8567a8db9e388bd9947d3ebddbd8812a73de1bd.jpg)  \n图2-19例题2——用作图法求二次成像\n",
+      "type": "example"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "example_num": "4",
+      "title": "例题4 虚物 $QP$ 位于图2-28所示的光具组中凸透镜 $\\mathbf{L}_1$ 之右距离为 $2a$ 的地方，试利用焦点主面作图法求它的像。",
+      "content": "解：（1）作图法\n\n如图2-29, 过 $P$ 点作平行于光轴的入射线1遇 $\\mathcal{H}$ 于 $M$ , 其共轭线 $1'$ 过 $\\mathcal{H}'$ 上等高点 $M'$ 和像方焦点 $F'$ ; 再作过 $F, P$ 的入射线2遇 $\\mathcal{H}$ 于 $R$ , 其共轭线 $2'$ 过 $\\mathcal{H}'$ 上的等高\n\n点 $R'$ ，且与光轴平行。 $1'$ 与 $2'$ 的交点即为像点 $P'$ .\n",
+      "type": "example"
+    },
+    {
+      "book": "opt",
+      "chapter": "8",
+      "example_num": "5",
+      "title": "例题5 用冕牌玻璃和火石玻璃(折射率见下表)来做焦距为 $10.0\\mathrm{cm}$ 的消色差胶合透镜, 求两透镜焦距。焦距通常以可见光区域中部的钠光谱D线为准, $\\lambda_{\\mathrm{D}} = 589.3\\mathrm{nm}$ , 黄色。",
+      "content": "<table><tr><td>冕牌玻璃</td><td>1.157</td><td>1.511</td><td>1.509</td></tr><tr><td>火石玻璃</td><td>1.633</td><td>1.621</td><td>1.616</td></tr></table>\n\n解：\n\n$$\n\\begin{array}{l} P _ {\\mathrm{D}} = (n _ {1 \\mathrm{D}} - 1) K _ {1} + (n _ {2 \\mathrm{D}} - 1) K _ {2} = 1 0. 0 \\mathrm{D}, \\\\ P _ {\\mathrm{F}} - P _ {\\mathrm{C}} = (n _ {1 \\mathrm{F}} - n _ {1 \\mathrm{C}}) K _ {1} + (n _ {2 \\mathrm{F}} - n _ {2 \\mathrm{C}}) K _ {2} = 0, \\end{array}\n$$\n\n将上表中的数值代入上列联立方程组，即可解得\n\n从而\n\n$$\n\\begin{array}{r l} & {K _ {1} = 4 5. 7 (\\text {冕牌玻璃}), \\quad K _ {2} = 2 1. 5 (\\text {火石玻璃}),} \\\\ & {P _ {1} = (n _ {\\mathrm{1D}} - 1) K _ {1} = 2 3. 4 \\mathrm{D},} \\\\ & {P _ {2} = (n _ {\\mathrm{2D}} - 1) K _ {2} = - 1 3. 4 \\mathrm{D},} \\\\ & {f _ {1} = 4. 2 7 \\mathrm{cm}, f _ {2} = - 7. 4 6 \\mathrm{cm}.} \\end{array}\n$$\n\n在胶合透镜中有三个曲率半径 $r_1, r_2, r_3$ 可供选择，除了保证上述两个焦距之外，\n\n还可考虑消除球差和彗差的问题。\n\n对于黏合薄透镜，主面与透镜所在平面重合，焦距的色差消除了，不同颜色光的焦\n\n点就自然重合在一起。然而当光具组有一定厚度时情况便不如此。此时为了消除全部色差，不同颜色的像对眼睛所张的视角相同(见图2-61)。5.4节的(2.68)式表明，视角放大率只与焦距有关，因而只需消除焦距色差，无需消除位置色差。常见的目镜多由两个材料相同的薄透镜组成，它们之间相隔一定距离 $d$ ，在这种情况下透镜的光焦度为\n\n![](images/8af0c07b463f2d43d81ac087f00d43951a46dd86b58a123cf9a512d1a5271608.jpg)  \n图2-61只消除了放大率色差，但未消除位置色差的目镜，不同颜色的像看起来是重叠的\n\n$$\nP = P _ {1} + P _ {2} - P _ {1} P _ {2} d = (n - 1) \\left(K _ {1} + K _ {2}\\right) - (n - 1) ^ {2} K _ {1} K _ {2} d.\n$$\n\n取对折射率 $n$ 的导数：\n\n$$\n\\frac {\\mathrm{d} P}{\\mathrm{d} n} = K _ {1} + K _ {2} - 2 (n - 1) K _ {1} K _ {2} d,\n$$\n\n由极值条件 $\\mathrm{d}P / \\mathrm{d}n = 0$ 得\n\n$$\nd = \\frac {K _ {1} + K _ {2}}{2 (n - 1) K _ {1} K _ {2} d} = \\frac {P _ {1} + P _ {2}}{2 P _ {1} P _ {2}} = \\frac {f _ {1} + f _ {2}}{2}.\\tag{2.77}\n$$\n\n因 $f_{1}$ 、 $f_{2}$ 与折射率n有关，n与波长 $\\lambda$ 有关，故只能对于某个特定的波长 $\\lambda_{0}$ 选择d满足上式，用这样的透镜组作目镜，对波长在 $\\lambda_{0}$ 附近的光来说是消除了视角色差的。\n\n下面介绍两种常用的目镜。\n",
+      "type": "example"
+    }
+  ]
+}

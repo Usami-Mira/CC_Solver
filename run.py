@@ -15,6 +15,7 @@ SKILLS_DIR = PROMPTS_DIR / "skills"
 
 CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
 MODEL = CONFIG.get("model", "sonnet")
+PIPELINE = CONFIG.get("pipeline", "standard")
 TIMEOUT = CONFIG.get("timeout_seconds", 600)
 MAX_CONCURRENT = CONFIG.get("max_concurrent_problems", 3)
 
@@ -81,7 +82,30 @@ __pycache__/
 
 def assemble_orchestrator_prompt():
     """Assemble the complete orchestrator system prompt from components."""
-    template = read_prompt("orchestrator")
+    # Select orchestrator template based on pipeline type
+    if PIPELINE == "standard":
+        template = read_prompt("orchestrator")
+        architecture_extra = ""
+    elif PIPELINE == "parallel":
+        template = read_prompt("orchestrator_parallel")
+        architecture_extra = read_prompt("architecture_parallel")
+        meta_planner = read_prompt("meta_planner")
+    elif PIPELINE == "iterative":
+        template = read_prompt("orchestrator_iterative")
+        architecture_extra = read_prompt("architecture_iterative")
+        explorer = read_prompt("explorer")
+    elif PIPELINE == "debate":
+        template = read_prompt("orchestrator_debate")
+        architecture_extra = read_prompt("architecture_debate")
+        coordinator = read_prompt("coordinator")
+    elif PIPELINE == "tree_search":
+        template = read_prompt("orchestrator_tree_search")
+        architecture_extra = read_prompt("architecture_tree_search")
+        strategist = read_prompt("strategist")
+        validator = read_prompt("validator")
+    else:
+        print(f"Error: unknown pipeline '{PIPELINE}'")
+        sys.exit(1)
 
     architecture = read_prompt("architecture")
     planner = read_prompt("planner")
@@ -89,13 +113,28 @@ def assemble_orchestrator_prompt():
     evaluator = read_prompt("evaluator")
     skills = read_skills()
 
+    # Combine base architecture with pipeline-specific architecture
+    full_architecture = architecture + "\n\n" + architecture_extra if architecture_extra else architecture
+
     # Step 1: Insert all sections into template
     prompt = template
-    prompt = prompt.replace("{architecture}", architecture)
+    prompt = prompt.replace("{architecture}", full_architecture)
     prompt = prompt.replace("{planner_prompt}", planner)
     prompt = prompt.replace("{builder_prompt}", builder)
     prompt = prompt.replace("{evaluator_prompt}", evaluator)
     prompt = prompt.replace("{skills}", skills)
+
+    # Insert pipeline-specific prompts
+    if PIPELINE == "parallel":
+        prompt = prompt.replace("{meta_planner_prompt}", meta_planner)
+    elif PIPELINE == "iterative":
+        prompt = prompt.replace("{explorer_prompt}", explorer)
+    elif PIPELINE == "debate":
+        prompt = prompt.replace("{coordinator_prompt}", coordinator)
+    elif PIPELINE == "tree_search":
+        prompt = prompt.replace("{strategist_prompt}", strategist)
+        prompt = prompt.replace("{validator_prompt}", validator)
+
     # Step 2: Replace config variables globally (including inside skills)
     # Runtime placeholders like {workspace} and {role} are preserved as-is
     prompt = prompt.replace("{project_root}", str(ROOT))
@@ -104,7 +143,21 @@ def assemble_orchestrator_prompt():
 
 
 def main():
-    workspace = sys.argv[1] if len(sys.argv) > 1 else "problems/001"
+    global PIPELINE
+
+    # Parse command-line arguments
+    import argparse
+    parser = argparse.ArgumentParser(description="Physics problem solver with multiple pipelines")
+    parser.add_argument("workspace", nargs="?", default="problems/001", help="Problem workspace directory")
+    parser.add_argument("--pipeline", choices=["standard", "parallel", "iterative", "debate", "tree_search"],
+                       help="Override pipeline type from config.json")
+    args = parser.parse_args()
+
+    workspace = args.workspace
+
+    # Override pipeline if specified on command line
+    if args.pipeline:
+        PIPELINE = args.pipeline
 
     # Copy RAG query script into workspace so agents can run it locally
     query_script = ROOT / "textbook" / "rag_build" / "query_rag.py"
@@ -123,7 +176,7 @@ def main():
 
     agents_json = json.dumps({
         "Orchestrator": {
-            "description": "Orchestrator — 编排多个 Agent 解决物理题目",
+            "description": f"Orchestrator — {PIPELINE} pipeline",
             "prompt": orchestrator_prompt,
         }
     })
@@ -152,8 +205,8 @@ def main():
     start_time = time.time()
 
     with open(log_path, "w", encoding="utf-8") as log_file:
-        print(f"[Orchestrator] started at {time.strftime('%H:%M:%S')}", flush=True)
-        log_file.write(f"[start] Orchestrator | {time.strftime('%H:%M:%S')}\n")
+        print(f"[Orchestrator] pipeline={PIPELINE}, started at {time.strftime('%H:%M:%S')}", flush=True)
+        log_file.write(f"[start] Orchestrator | pipeline={PIPELINE} | {time.strftime('%H:%M:%S')}\n")
         log_file.flush()
 
         proc = subprocess.Popen(
@@ -201,7 +254,7 @@ def main():
             print(f"[Orchestrator] error: {result_event.get('result', 'Unknown')[:300]}")
             sys.exit(1)
 
-        log_file.write(f"[done] Orchestrator | {time.strftime('%H:%M:%S')} | elapsed={elapsed:.1f}s\n")
+        log_file.write(f"[done] Orchestrator | pipeline={PIPELINE} | {time.strftime('%H:%M:%S')} | elapsed={elapsed:.1f}s\n")
 
     print(f"\n[Orchestrator] done ({elapsed:.0f}s)")
 
