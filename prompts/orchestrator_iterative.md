@@ -66,7 +66,7 @@
 **目标：** Explorer 基于探索历史提出新的假设。
 
 **步骤：**
-1. 创建 explorer_task 文件："读取 problem.md 和 exploration_history.md，提出新的假设，写入 hypothesis_{N}.md"
+1. 在 `{workspace}` 目录中创建 explorer_task 文件："读取 problem.md 和 exploration_history.md，提出新的假设，写入 hypothesis_{N}.md"
 2. 用 Bash 调用 spawn.py 启动 Explorer：
    ```bash
    python3 {project_root}/spawn.py Explorer {workspace} explorer explorer_task
@@ -81,7 +81,7 @@
 **目标：** Builder 执行实验验证假设。
 
 **步骤：**
-1. 创建 builder_task 文件："读取 problem.md 和 hypothesis_{N}.md，执行实验/计算，将结果写入 experiment_{N}.md"
+1. 在 `{workspace}` 目录中创建 builder_task 文件："读取 problem.md 和 hypothesis_{N}.md，执行实验/计算，将结果写入 experiment_{N}.md"
 2. 用 Bash 调用 spawn.py 启动 Builder
 3. 等待 Builder 完成（最多 900 秒），检查 experiment_{N}.md 已生成且非空
 4. 如果失败，重试一次；仍失败则记录错误并标记为 DEAD_END
@@ -93,7 +93,7 @@
 **目标：** Evaluator 评估实验结果，判断是否继续迭代。
 
 **步骤：**
-1. 创建 evaluator_task 文件："读取 problem.md、hypothesis_{N}.md 和 experiment_{N}.md，将评估结果写入 assessment_{N}.md。第一行必须是以下之一：PASS、PARTIAL、DEAD_END"
+1. 在 `{workspace}` 目录中创建 evaluator_task 文件："读取 problem.md、hypothesis_{N}.md 和 experiment_{N}.md，将评估结果写入 assessment_{N}.md。第一行必须是以下之一：PASS、PARTIAL、DEAD_END"
 2. 用 Bash 调用 spawn.py 启动 Evaluator
 3. 等待 Evaluator 完成（最多 600 秒），检查 assessment_{N}.md 已生成且非空
 4. 读取 assessment_{N}.md 的第一行，判断下一步：

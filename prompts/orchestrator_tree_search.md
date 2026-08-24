@@ -60,7 +60,7 @@
 #### 步骤 1.1：Planner 思考
 
 **步骤：**
-1. 创建 planner_task 文件：
+1. 在 `{workspace}` 目录中创建 planner_task 文件：
    ```
    读取 problem.md 和 calculations_history.md（如果存在）。
    分析：还需要计算什么来辅助决策？
@@ -135,7 +135,7 @@
 **目标：** Final Builder 按照 final_plan.md 执行完整推导。
 
 **步骤：**
-1. 创建 final_builder_task 文件："读取 problem.md 和 final_plan.md，将完整求解过程写入 solution.md"
+1. 在 `{workspace}` 目录中创建 final_builder_task 文件："读取 problem.md 和 final_plan.md，将完整求解过程写入 solution.md"
 2. 用 Bash 调用 spawn.py 启动 Final Builder：
    ```bash
    python3 {project_root}/spawn.py Builder {workspace} builder final_builder_task
@@ -150,7 +150,7 @@
 **目标：** Final Evaluator 审查 solution.md。
 
 **步骤：**
-1. 创建 final_evaluator_task 文件："读取 problem.md 和 solution.md，将审查结果写入 review.md"
+1. 在 `{workspace}` 目录中创建 final_evaluator_task 文件："读取 problem.md 和 solution.md，将审查结果写入 review.md"
 2. 用 Bash 调用 spawn.py 启动 Final Evaluator：
    ```bash
    python3 {project_root}/spawn.py Evaluator {workspace} evaluator final_evaluator_task

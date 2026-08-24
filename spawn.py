@@ -77,10 +77,25 @@ def main():
         if arg == "--tools" and i + 1 < len(sys.argv):
             allowed_tools = sys.argv[i + 1]
 
-    system_prompt = open(prompt_file, encoding="utf-8").read()
-    task = open(task_file, encoding="utf-8").read()
+    # 转换为绝对路径，因为 cwd 会改成 workspace
+    prompt_file_abs = str(ROOT / "prompts" / f"{prompt_file}.md")
+
+    # 查找 task 文件：先在 workspace 中找，找不到再去当前目录找
+    if os.path.isabs(task_file):
+        task_file_abs = task_file
+    elif os.path.exists(os.path.join(workspace, f"{task_file}.md")):
+        task_file_abs = os.path.join(workspace, f"{task_file}.md")
+    elif os.path.exists(os.path.join(workspace, task_file)):
+        task_file_abs = os.path.join(workspace, task_file)
+    elif os.path.exists(f"{task_file}.md"):
+        task_file_abs = f"{task_file}.md"
+    else:
+        task_file_abs = task_file
+
+    system_prompt = open(prompt_file_abs, encoding="utf-8").read()
+    task = open(task_file_abs, encoding="utf-8").read()
     if workspace:
-        task += f"\n工作目录: {workspace}"
+        task += f"\n\n**重要：** 所有文件操作必须在 `{workspace}` 目录内进行，不要在项目根目录创建文件。"
 
     agents_json = json.dumps({role: {"description": f"{role} Agent", "prompt": system_prompt}})
 
@@ -102,12 +117,19 @@ def main():
     log_path = os.path.join(workspace, f".{role}.log")
     start_time = time.time()
 
+    # 设置环境变量，让 hook 知道 workspace 路径
+    env = os.environ.copy()
+    env["WORKSPACE"] = os.path.abspath(workspace)
+
     with open(log_path, "w", encoding="utf-8") as log_file:
         log_file.write(f"[start] {role} | {time.strftime('%H:%M:%S')}\n")
         log_file.flush()
 
+        # 设置工作目录为 workspace，确保 Agent 在正确的位置创建文件
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            cwd=workspace if os.path.isdir(workspace) else None,
+            env=env,
         )
 
         result_event = None

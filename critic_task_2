@@ -1,1 +1,0 @@
-读取 problem.md、theorist.md（已更新）、computationalist.md（已更新）、experimentalist.md（已更新）和 critic_round_1.md。评估专家们是否已充分回应第 1 轮批评。如果仍有 Critical 或 Major 问题，写入 critic_round_2.md；如果只剩 Minor 问题或已全部解决，写入 critic_round_2.md 总结可以进入 Coordinator 阶段。

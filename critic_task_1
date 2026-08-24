@@ -1,1 +1,0 @@
-读取 problem.md、theorist.md、computationalist.md、experimentalist.md，指出所有专家分析中的问题和改进建议，写入 critic_round_1.md。重点关注：物理错误、逻辑漏洞、不一致之处、计算可行性问题。

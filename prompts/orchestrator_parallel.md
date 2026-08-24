@@ -88,7 +88,7 @@
 **目标：** Meta-Planner 评估 3 个方案，选择或合并最优方案。
 
 **步骤：**
-1. 创建 meta_task 文件，指示 Meta-Planner：
+1. 在 `{workspace}` 目录中创建 meta_task 文件，指示 Meta-Planner：
    - 读取 plan_1.md, plan_2.md, plan_3.md（这些只包含核心推导步骤）
    - 评估并选择最佳方案（或合并多个方案的优点）
    - **补充完整的计划结构**：量纲分析（Buckingham π 定理）、极端情况分析、预期难点等
@@ -106,7 +106,7 @@
 **目标：** Builder 按照 Meta-Planner 选定的方案执行完整推导。
 
 **步骤：**
-1. 创建 builder_task 文件："读取 problem.md 和 plan.md，将完整求解过程写入 solution.md"
+1. 在 `{workspace}` 目录中创建 builder_task 文件："读取 problem.md 和 plan.md，将完整求解过程写入 solution.md"
 2. 用 Bash 调用 spawn.py 启动 Builder
 3. 等待 Builder 完成，检查 solution.md 已生成
 
@@ -117,7 +117,7 @@
 **目标：** Evaluator 审查 solution.md，判断是否需要修正。
 
 **步骤：**
-1. 创建 evaluator_task 文件："读取 problem.md 和 solution.md，将审查结果写入 review.md"
+1. 在 `{workspace}` 目录中创建 evaluator_task 文件："读取 problem.md 和 solution.md，将审查结果写入 review.md"
 2. 用 Bash 调用 spawn.py 启动 Evaluator
 3. 读取 review.md 的第一行：
    - `PASS` → 进入阶段 5

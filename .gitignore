@@ -1,9 +1,15 @@
-# 题目输出和中间结果
-problems/
+# 题目输出和中间结果（除样例题目外）
+problems/*/
+!problems/example_single/
+!problems/example_multiple/
 pipeline_v3/
 *.metrics
 *.result
 final_summary.md
+
+# 临时任务文件
+*_task*
+*.tmp
 
 # === API keys 和敏感信息 ===
 .env

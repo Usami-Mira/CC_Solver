@@ -60,7 +60,7 @@
 **步骤：**
 
 1. **启动 Theorist**
-   - 创建 theorist_task 文件："读取 problem.md，从理论角度分析，写入 theorist.md"
+   - 在 `{workspace}` 目录中创建 theorist_task 文件："读取 problem.md，从理论角度分析，写入 theorist.md"
    - 用 Bash 调用 spawn.py 启动 Theorist：
      ```bash
      python3 {project_root}/spawn.py Theorist {workspace} experts/theorist theorist_task
@@ -69,13 +69,13 @@
    - **验证**：检查 theorist.md 是否存在且非空
 
 2. **启动 Computationalist**
-   - 创建 comp_task 文件："读取 problem.md，从计算方法角度分析，写入 computationalist.md"
+   - 在 `{workspace}` 目录中创建 comp_task 文件："读取 problem.md，从计算方法角度分析，写入 computationalist.md"
    - 用 Bash 调用 spawn.py 启动 Computationalist
    - **等待完成**（最多 600 秒）
    - **验证**：检查 computationalist.md 是否存在且非空
 
 3. **启动 Experimentalist**
-   - 创建 exp_task 文件："读取 problem.md，从实验/估算角度分析，写入 experimentalist.md"
+   - 在 `{workspace}` 目录中创建 exp_task 文件："读取 problem.md，从实验/估算角度分析，写入 experimentalist.md"
    - 用 Bash 调用 spawn.py 启动 Experimentalist
    - **等待完成**（最多 600 秒）
    - **验证**：检查 experimentalist.md 是否存在且非空
@@ -96,7 +96,7 @@
 #### 步骤 2.1：批评（Critic）
 
 **步骤：**
-1. 创建 critic_task 文件："读取 problem.md、theorist.md、computationalist.md、experimentalist.md，指出问题和改进建议，写入 critic_round_{N}.md"
+1. 在 `{workspace}` 目录中创建 critic_task 文件："读取 problem.md、theorist.md、computationalist.md、experimentalist.md，指出问题和改进建议，写入 critic_round_{N}.md"
 2. 用 Bash 调用 spawn.py 启动 Critic
 3. 等待 Critic 完成（最多 600 秒），检查 critic_round_{N}.md 已生成且非空
 4. 如果失败，重试一次；仍失败则跳过本轮批评
@@ -108,19 +108,19 @@
 **步骤：**
 
 1. **Theorist 回应**
-   - 创建 theorist_respond_task 文件："读取 problem.md、theorist.md、critic_round_{N}.md，回应批评并修正方案，将修正后的方案写入 theorist_round_{N}.md（保留原始 theorist.md 不变）"
+   - 在 `{workspace}` 目录中创建 theorist_respond_task 文件："读取 problem.md、theorist.md、critic_round_{N}.md，回应批评并修正方案，将修正后的方案写入 theorist_round_{N}.md（保留原始 theorist.md 不变）"
    - 用 Bash 调用 spawn.py 启动 Theorist
    - **等待完成**（最多 600 秒）
    - **验证**：检查 theorist_round_{N}.md 是否存在且非空
 
 2. **Computationalist 回应**
-   - 创建 comp_respond_task 文件："读取 problem.md、computationalist.md、critic_round_{N}.md，回应批评并修正方案，将修正后的方案写入 computationalist_round_{N}.md"
+   - 在 `{workspace}` 目录中创建 comp_respond_task 文件："读取 problem.md、computationalist.md、critic_round_{N}.md，回应批评并修正方案，将修正后的方案写入 computationalist_round_{N}.md"
    - 用 Bash 调用 spawn.py 启动 Computationalist
    - **等待完成**（最多 600 秒）
    - **验证**：检查 computationalist_round_{N}.md 是否存在且非空
 
 3. **Experimentalist 回应**
-   - 创建 exp_respond_task 文件："读取 problem.md、experimentalist.md、critic_round_{N}.md，回应批评并修正方案，将修正后的方案写入 experimentalist_round_{N}.md"
+   - 在 `{workspace}` 目录中创建 exp_respond_task 文件："读取 problem.md、experimentalist.md、critic_round_{N}.md，回应批评并修正方案，将修正后的方案写入 experimentalist_round_{N}.md"
    - 用 Bash 调用 spawn.py 启动 Experimentalist
    - **等待完成**（最多 600 秒）
    - **验证**：检查 experimentalist_round_{N}.md 是否存在且非空
@@ -138,7 +138,7 @@
 #### 步骤 2.3：书记记录（Secretary）
 
 **步骤：**
-1. 创建 secretary_task 文件："读取 problem.md、theorist.md、computationalist.md、experimentalist.md、critic_round_{N}.md，总结本轮讨论的关键观点和分歧，写入 debate_summary_round_{N}.md"
+1. 在 `{workspace}` 目录中创建 secretary_task 文件："读取 problem.md、theorist.md、computationalist.md、experimentalist.md、critic_round_{N}.md，总结本轮讨论的关键观点和分歧，写入 debate_summary_round_{N}.md"
 2. 用 Bash 调用 spawn.py 启动 Secretary
 3. 等待 Secretary 完成（最多 300 秒），检查 debate_summary_round_{N}.md 已生成且非空
 
@@ -154,7 +154,7 @@
 **目标：** Secretary 综合所有专家意见和辩论记录，撰写最终 Plan。
 
 **步骤：**
-1. 创建 final_plan_task 文件："读取 problem.md、theorist.md、computationalist.md、experimentalist.md、所有 critic_round_*.md、所有 debate_summary_round_*.md，综合共识，撰写最终解题计划，写入 final_plan.md"
+1. 在 `{workspace}` 目录中创建 final_plan_task 文件："读取 problem.md、theorist.md、computationalist.md、experimentalist.md、所有 critic_round_*.md、所有 debate_summary_round_*.md，综合共识，撰写最终解题计划，写入 final_plan.md"
 2. 用 Bash 调用 spawn.py 启动 Secretary
 3. 等待 Secretary 完成，检查 final_plan.md 已生成
 
@@ -165,7 +165,7 @@
 **目标：** Builder 按照最终 Plan 执行完整推导。
 
 **步骤：**
-1. 创建 builder_task 文件："读取 problem.md 和 final_plan.md，将完整求解过程写入 solution.md"
+1. 在 `{workspace}` 目录中创建 builder_task 文件："读取 problem.md 和 final_plan.md，将完整求解过程写入 solution.md"
 2. 用 Bash 调用 spawn.py 启动 Builder
 3. 等待 Builder 完成
 
@@ -176,7 +176,7 @@
 **目标：** Evaluator 审查 solution.md。
 
 **步骤：**
-1. 创建 evaluator_task 文件："读取 problem.md 和 solution.md，将审查结果写入 review.md"
+1. 在 `{workspace}` 目录中创建 evaluator_task 文件："读取 problem.md 和 solution.md，将审查结果写入 review.md"
 2. 用 Bash 调用 spawn.py 启动 Evaluator
 3. 读取 review.md 的第一行：
    - `PASS` → 进入阶段 6
