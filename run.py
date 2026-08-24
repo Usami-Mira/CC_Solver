@@ -101,8 +101,8 @@ def assemble_orchestrator_prompt():
     elif PIPELINE == "tree_search":
         template = read_prompt("orchestrator_tree_search")
         architecture_extra = read_prompt("architecture_tree_search")
-        strategist = read_prompt("strategist")
-        validator = read_prompt("validator")
+        # strategist = read_prompt("strategist")
+        # validator = read_prompt("validator")
     else:
         print(f"Error: unknown pipeline '{PIPELINE}'")
         sys.exit(1)
@@ -119,7 +119,8 @@ def assemble_orchestrator_prompt():
     # Step 1: Insert all sections into template
     prompt = template
     prompt = prompt.replace("{architecture}", full_architecture)
-    prompt = prompt.replace("{planner_prompt}", planner)
+    prompt = prompt.replace("{planner_prompt}", planner 
+                            if PIPELINE != "tree_search" else read_prompt("planner_tree_search"))
     prompt = prompt.replace("{builder_prompt}", builder)
     prompt = prompt.replace("{evaluator_prompt}", evaluator)
     prompt = prompt.replace("{skills}", skills)
@@ -132,9 +133,9 @@ def assemble_orchestrator_prompt():
     elif PIPELINE == "debate":
         prompt = prompt.replace("{secretary_prompt}", secretary)
     elif PIPELINE == "tree_search":
-        prompt = prompt.replace("{planner_prompt}", planner_tree_search)
-        prompt = prompt.replace("{builder_ephemeral_prompt}", builder_ephemeral)
-        prompt = prompt.replace("{evaluator_ephemeral_prompt}", evaluator_ephemeral)
+        # prompt = prompt.replace("{planner_prompt}", read_prompt("planner_tree_search"))
+        prompt = prompt.replace("{builder_ephemeral_prompt}", read_prompt("builder_ephemeral"))
+        prompt = prompt.replace("{evaluator_ephemeral_prompt}", read_prompt("evaluator_ephemeral"))
 
     # Step 2: Replace config variables globally (including inside skills)
     # Runtime placeholders like {workspace} and {role} are preserved as-is
@@ -174,7 +175,6 @@ def main():
     init_workspace_git(workspace)
 
     orchestrator_prompt = assemble_orchestrator_prompt()
-
     agents_json = json.dumps({
         "Orchestrator": {
             "description": f"Orchestrator — {PIPELINE} pipeline",
