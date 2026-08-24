@@ -1,0 +1,6 @@
+读取 problem.md、theorist.md、computationalist.md、experimentalist.md、critic_round_1.md 和 critic_round_2.md。综合所有专家意见和批评，生成统一的解题计划，写入 consensus_plan.md。重点关注：
+1. 使用电荷-电势法（方法A）作为主要路线
+2. 利用椭圆积分的解析结果
+3. 关键积分 ∫_0^1 u E(u²) du = 2/3 的严格推导
+4. 最终结果 W = 2Q²/(3π²ε₀R)
+5. 注明蒙特卡洛方法的方差发散问题（仅供数值方法参考）
