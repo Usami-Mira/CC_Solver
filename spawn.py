@@ -12,7 +12,8 @@ sys.path.insert(0, str(ROOT))
 from stream_parser import parse_stream_event
 
 CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
-MODEL = CONFIG.get("model", "sonnet")
+DEFAULT_MODEL = CONFIG.get("model", "qwen3.6-plus")
+AGENT_MODELS = CONFIG.get("agent_models", {})
 TIMEOUT = CONFIG.get("timeout_seconds", 600)
 
 # Per-agent permission profiles
@@ -65,6 +66,9 @@ def main():
     prompt_file = sys.argv[3]
     task_file = sys.argv[4]
 
+    # Select model for this agent (agent-specific > default)
+    model = AGENT_MODELS.get(role, DEFAULT_MODEL)
+
     # Determine allowed tools: CLI override > profile > generic default
     allowed_tools = "Read,Write,Edit,Bash"  # fallback default
     if role in AGENT_PROFILES:
@@ -91,7 +95,7 @@ def main():
         "--agent", role,
         "--allowed-tools", allowed_tools,
         "--add-dir", workspace,
-        "--model", MODEL,
+        "--model", model,
         task,
     ]
 

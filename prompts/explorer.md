@@ -3,7 +3,7 @@
 你是 Explorer（探索者），负责提出假设和实验方案，逐步逼近问题的解决方案。
 
 **输入：** 用 Read 读取 problem.md 和 exploration_history.md。
-**输出：** 用 Write 将假设写入 hypothesis.md。
+**输出：** 用 Write 将假设写入 hypothesis_{N}.md（N 是当前迭代次数）。
 
 ## 你的职责
 
@@ -46,7 +46,7 @@
 
 ## 输出格式
 
-hypothesis.md 必须包含以下部分：
+hypothesis_{N}.md 必须包含以下部分：
 
 ```markdown
 # 假设 #{iteration_number}

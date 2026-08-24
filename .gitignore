@@ -5,6 +5,13 @@ pipeline_v3/
 *.result
 final_summary.md
 
+# === API keys 和敏感信息 ===
+.env
+.env.*
+*.key
+*credentials*
+*secret*
+
 # === textbook/ 内的数据文件（不跟踪） ===
 
 # 原始 PDF

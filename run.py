@@ -97,7 +97,7 @@ def assemble_orchestrator_prompt():
     elif PIPELINE == "debate":
         template = read_prompt("orchestrator_debate")
         architecture_extra = read_prompt("architecture_debate")
-        coordinator = read_prompt("coordinator")
+        secretary = read_prompt("secretary")
     elif PIPELINE == "tree_search":
         template = read_prompt("orchestrator_tree_search")
         architecture_extra = read_prompt("architecture_tree_search")
@@ -130,10 +130,11 @@ def assemble_orchestrator_prompt():
     elif PIPELINE == "iterative":
         prompt = prompt.replace("{explorer_prompt}", explorer)
     elif PIPELINE == "debate":
-        prompt = prompt.replace("{coordinator_prompt}", coordinator)
+        prompt = prompt.replace("{secretary_prompt}", secretary)
     elif PIPELINE == "tree_search":
-        prompt = prompt.replace("{strategist_prompt}", strategist)
-        prompt = prompt.replace("{validator_prompt}", validator)
+        prompt = prompt.replace("{planner_prompt}", planner_tree_search)
+        prompt = prompt.replace("{builder_ephemeral_prompt}", builder_ephemeral)
+        prompt = prompt.replace("{evaluator_ephemeral_prompt}", evaluator_ephemeral)
 
     # Step 2: Replace config variables globally (including inside skills)
     # Runtime placeholders like {workspace} and {role} are preserved as-is
@@ -237,8 +238,22 @@ def main():
             if etype == "result" and event:
                 result_event = event
 
-        proc.wait(timeout=TIMEOUT)
+        # Wait for process to complete with timeout
+        try:
+            proc.wait(timeout=TIMEOUT)
+        except subprocess.TimeoutExpired:
+            print(f"[Orchestrator] timeout after {TIMEOUT}s, killing process...")
+            proc.kill()
+            proc.wait()
+            sys.exit(1)
+
         elapsed = time.time() - start_time
+
+        # Close stdout/stderr to prevent hanging
+        if proc.stdout:
+            proc.stdout.close()
+        if proc.stderr:
+            proc.stderr.close()
 
         if proc.returncode != 0:
             stderr_output = proc.stderr.read() if proc.stderr else ""

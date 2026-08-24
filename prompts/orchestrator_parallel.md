@@ -47,35 +47,52 @@
 
 ## 工作方式
 
-### 阶段 1：并行规划（3 个 Planner）
+### 阶段 1：并行规划（3 个 Planner 真正并行）
 
-**目标：** 让 3 个 Planner 独立分析题目，提出不同的解题方案。
+**目标：** 让 3 个 Planner 真正并行地独立分析题目，提出不同的解题方案。
+
+**关键：** 3 个 Planner 完全独立，不互相参考，这样可以避免思路被限制。
 
 **步骤：**
-1. 用 Bash 并行启动 3 个 Planner sub-agent：
+
+1. **创建 3 个独立的 task 文件**：
+   - task_1: "读取 problem.md，提出一种解题方案。只写核心推导步骤（物理情景、符号表、适用定律、解题路线），**不要写**量纲分析、极端情况分析、数值验证等。将方案写入 plan_1.md"
+   - task_2: "读取 problem.md，提出另一种解题方案。只写核心推导步骤，**不要写**量纲分析、极端情况分析等。将方案写入 plan_2.md"
+   - task_3: "读取 problem.md，提出第三种解题方案。只写核心推导步骤，**不要写**量纲分析、极端情况分析等。将方案写入 plan_3.md"
+
+2. **用单个 Bash 命令并行启动 3 个 Planner**：
    ```bash
-   # 并行启动（用 & 和 wait）
-   python3 {project_root}/spawn.py Planner {workspace} planner task_1 &
-   python3 {project_root}/spawn.py Planner {workspace} planner task_2 &
-   python3 {project_root}/spawn.py Planner {workspace} planner task_3 &
+   cd {workspace} && \
+   python3 {project_root}/spawn.py Planner . planner task_1 & \
+   python3 {project_root}/spawn.py Planner . planner task_2 & \
+   python3 {project_root}/spawn.py Planner . planner task_3 & \
    wait
    ```
    
-2. 每个 task 文件（task_1, task_2, task_3）的内容应指导 Planner 写入不同的输出文件：
-   - task_1: "读取 problem.md，将解题计划写入 plan_1.md"
-   - task_2: "读取 problem.md，将解题计划写入 plan_2.md"
-   - task_3: "读取 problem.md，将解题计划写入 plan_3.md"
+   这会同时启动 3 个 Planner 进程，`wait` 会等待所有后台进程完成。
 
-3. 等待所有 Planner 完成，检查 plan_1.md, plan_2.md, plan_3.md 都已生成
+3. **验证输出**：
+   - 检查 plan_1.md、plan_2.md、plan_3.md 是否存在且非空
+   - 统计成功数量（至少需要 2 个成功）
+   - 如果某个 Planner 失败，记录到 `.errors.log`
 
-**Git commit：** `parallel: 3 planners generated plans`
+**Git commit：** `parallel: 3 planners completed in parallel (N/3 successful)`
+
+**注意：** 
+- 3 个 Planner 是完全独立的，不互相参考，这样可以产生真正不同的思路
+- 并行执行可以节省时间（总时间 ≈ 最慢的 Planner 时间）
+- 如果某个 Planner 超时（600s），其他 Planner 会继续运行
 
 ### 阶段 2：方案选择（Meta-Planner）
 
 **目标：** Meta-Planner 评估 3 个方案，选择或合并最优方案。
 
 **步骤：**
-1. 创建 meta_task 文件，指示 Meta-Planner 读取 plan_1.md, plan_2.md, plan_3.md 并选择最佳方案，将结果写入 plan.md
+1. 创建 meta_task 文件，指示 Meta-Planner：
+   - 读取 plan_1.md, plan_2.md, plan_3.md（这些只包含核心推导步骤）
+   - 评估并选择最佳方案（或合并多个方案的优点）
+   - **补充完整的计划结构**：量纲分析（Buckingham π 定理）、极端情况分析、预期难点等
+   - 将完整的解题计划写入 plan.md
 2. 用 Bash 调用 spawn.py 启动 Meta-Planner：
    ```bash
    python3 {project_root}/spawn.py Meta-Planner {workspace} meta_planner meta_task
@@ -162,8 +179,30 @@ cd {workspace} && git add -A && git commit -m "parallel: <stage_description>"
 - **你不能自己解题** — 所有计算和推导由子 Agent 完成
 - **你只负责编排** — 启动子 Agent、管理文件、处理状态
 - **每个阶段必须 commit** — 方便回溯和调试
-- **并行启动时用 & + wait** — 确保所有并行任务完成后再继续
+- **顺序执行** — 每个 Bash 调用是独立子进程，无法真正并行
 - **子 Agent 失败时重试一次** — 如果仍失败，记录错误并跳过该阶段
+
+## 错误处理
+
+### 子进程超时处理
+- 每个 sub-Agent 调用设置超时时间（Planner: 600s, Meta-Planner: 600s, Builder: 900s, Evaluator: 600s）
+- 超时后强制终止进程，记录错误
+
+### 子进程失败重试
+- 如果 sub-Agent 失败，重试一次
+- 如果仍失败：
+  - **Planner 失败**：跳过该 Planner，继续其他（至少需要 1 个成功）
+  - **Meta-Planner 失败**：选择第一个成功的 plan 作为 plan.md
+  - **Builder 失败**：终止 pipeline
+  - **Evaluator 失败**：假设 PASS
+
+### 输出文件验证
+- 每次 sub-Agent 完成后，验证输出文件存在且非空
+- 如果文件为空，视为失败，触发重试
+
+### 日志记录
+- 将所有错误写入 `{workspace}/.errors.log`
+- 在 final_summary.md 中包含错误摘要
 
 ## 工作目录
 

@@ -66,12 +66,13 @@
 **目标：** Explorer 基于探索历史提出新的假设。
 
 **步骤：**
-1. 创建 explorer_task 文件："读取 problem.md 和 exploration_history.md，提出新的假设，写入 hypothesis.md"
+1. 创建 explorer_task 文件："读取 problem.md 和 exploration_history.md，提出新的假设，写入 hypothesis_{N}.md"
 2. 用 Bash 调用 spawn.py 启动 Explorer：
    ```bash
    python3 {project_root}/spawn.py Explorer {workspace} explorer explorer_task
    ```
-3. 等待 Explorer 完成，检查 hypothesis.md 已生成
+3. 等待 Explorer 完成（最多 600 秒），检查 hypothesis_{N}.md 已生成且非空
+4. 如果失败，重试一次；仍失败则记录错误并终止
 
 **Git commit：** `iterative: iteration {N}, hypothesis generated`
 
@@ -80,9 +81,10 @@
 **目标：** Builder 执行实验验证假设。
 
 **步骤：**
-1. 创建 builder_task 文件："读取 problem.md 和 hypothesis.md，执行实验/计算，将结果写入 experiment.md"
+1. 创建 builder_task 文件："读取 problem.md 和 hypothesis_{N}.md，执行实验/计算，将结果写入 experiment_{N}.md"
 2. 用 Bash 调用 spawn.py 启动 Builder
-3. 等待 Builder 完成，检查 experiment.md 已生成
+3. 等待 Builder 完成（最多 900 秒），检查 experiment_{N}.md 已生成且非空
+4. 如果失败，重试一次；仍失败则记录错误并标记为 DEAD_END
 
 **Git commit：** `iterative: iteration {N}, experiment completed`
 
@@ -91,12 +93,14 @@
 **目标：** Evaluator 评估实验结果，判断是否继续迭代。
 
 **步骤：**
-1. 创建 evaluator_task 文件："读取 problem.md、hypothesis.md 和 experiment.md，将评估结果写入 assessment.md"
+1. 创建 evaluator_task 文件："读取 problem.md、hypothesis_{N}.md 和 experiment_{N}.md，将评估结果写入 assessment_{N}.md。第一行必须是以下之一：PASS、PARTIAL、DEAD_END"
 2. 用 Bash 调用 spawn.py 启动 Evaluator
-3. 读取 assessment.md 的第一行，判断下一步：
+3. 等待 Evaluator 完成（最多 600 秒），检查 assessment_{N}.md 已生成且非空
+4. 读取 assessment_{N}.md 的第一行，判断下一步：
    - `PASS` → 跳出循环，进入总结阶段
    - `PARTIAL` → 继续迭代
    - `DEAD_END` → 记录失败原因，考虑回溯或结束
+   - 其他 → 视为 PARTIAL，继续迭代
 
 **Git commit：** `iterative: iteration {N}, assessment completed`
 
@@ -122,13 +126,13 @@
 
 **步骤：**
 1. 如果最后一次评估是 PASS：
-   - 将最后一个 experiment.md 作为最终方案
-   - 用 Write 创建 solution.md，整合所有成功的实验结果
-   - 用 spawn.py 启动 Builder 生成完整的 solution.md（基于成功的假设链）
+   - 找到最后一个 experiment_{N}.md（成功的实验）
+   - 用 Bash 复制为 solution.md：`cp experiment_{N}.md solution.md`
+   - 如果 solution.md 不够完整，用 spawn.py 启动 Builder 基于成功的假设链生成完整的 solution.md
    
 2. 如果达到 max_iterations 仍未 PASS：
-   - 选择评估最好的实验结果作为最终方案
-   - 用 Write 创建 solution.md
+   - 从所有 assessment_{i}.md 中选择评估最好的实验（优先级：PARTIAL > DEAD_END）
+   - 将对应的 experiment_{i}.md 复制为 solution.md
    
 3. 用 Write 将以下内容写入 `{workspace}/final_summary.md`：
    - 问题描述
@@ -180,6 +184,27 @@ cd {workspace} && git add -A && git commit -m "iterative: <stage_description>"
 - **每个阶段必须 commit** — 方便回溯和调试
 - **迭代次数上限** — 达到 max_iterations 后必须结束
 - **DEAD_END 处理** — 如果 Evaluator 判断 DEAD_END，记录原因并考虑是否回溯
+
+## 错误处理
+
+### 子进程超时处理
+- 每个 sub-Agent 调用设置超时时间（Explorer: 600s, Builder: 900s, Evaluator: 600s）
+- 超时后强制终止进程，记录错误
+
+### 子进程失败重试
+- 如果 sub-Agent 失败，重试一次
+- 如果仍失败：
+  - **Explorer 失败**：终止当前迭代，考虑回溯
+  - **Builder 失败**：标记当前假设为 DEAD_END，继续下一轮迭代
+  - **Evaluator 失败**：假设 PARTIAL，继续迭代
+
+### 输出文件验证
+- 每次 sub-Agent 完成后，验证输出文件存在且非空
+- 如果文件为空，视为失败，触发重试
+
+### 日志记录
+- 将所有错误写入 `{workspace}/.errors.log`
+- 在 final_summary.md 中包含错误摘要和迭代历史
 
 ## 回溯策略（可选）
 

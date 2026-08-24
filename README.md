@@ -2,7 +2,17 @@
 
 ## 简介
 
-本项目通过 Claude Code CLI 编排三个 Agent（Planner / Builder / Evaluator）自动解决物理题目。Planner 分析题目并制定解题计划，Builder 执行完整推导求解，Evaluator 审查结果并反馈。若审查未通过，系统自动将 Builder 的结果送回修正，最多迭代 2 次。每道题支持断点续传，中断后可自动从上次进度继续。系统使用 Git 自动追踪解题过程的完整演变，支持查看每个阶段的变更历史和版本对比。
+本项目通过 Claude Code CLI 编排多个 Agent 自动解决物理题目。系统提供 **5 种解题策略（Pipeline）**，适应不同类型的问题：
+
+| Pipeline | 策略 | 适用场景 |
+|----------|------|----------|
+| **Standard** | Planner → Builder → Evaluator | 常规题目，思路明确 |
+| **Parallel** | 3×Planner 并行 → Meta-Planner 选优 → Builder → Evaluator | 多解法探索，需要最优方案 |
+| **Iterative** | Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代 | 开放性问题，需要逐步逼近 |
+| **Debate** | 3×专家（理论/计算/实验）辩论 → Secretary 综合 → Builder → Evaluator | 复杂问题，需要多角度分析 |
+| **Tree Search** | Planner 决策 → Ephemeral Builder-Evaluator 计算验证 → Final Builder → Evaluator | 探索性问题，需要试错和回溯 |
+
+每道题支持断点续传，中断后可自动从上次进度继续。系统使用 Git 自动追踪解题过程的完整演变，支持查看每个阶段的变更历史和版本对比。
 
 ## 环境安装
 
@@ -73,26 +83,49 @@ problems/
 ```json
 {
   "model": "qwen3.6-plus",
+  "pipeline": "standard",
   "timeout_seconds": 86400,
-  "max_concurrent_problems": 3
+  "max_concurrent_problems": 3,
+  "agent_models": {
+    "Planner": "qwen3.6-plus",
+    "Builder": "qwen3.6-plus",
+    "Evaluator": "qwen3.6-plus"
+  }
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
-| `model` | 使用的模型名，由 Claude Code CLI 的 `--model` 参数传递 |
+| `model` | 默认使用的模型名，由 Claude Code CLI 的 `--model` 参数传递 |
+| `pipeline` | 解题策略：`standard` / `parallel` / `iterative` / `debate` / `tree_search` |
 | `timeout_seconds` | 单次调用的最大超时时间（秒），默认 86400（24 小时） |
 | `max_concurrent_problems` | 多题场景下同时并行处理的最大题目数，默认 3。设为 1 则串行处理 |
+| `agent_models` | （可选）为不同 Agent 配置不同模型，未指定的 Agent 使用默认 `model` |
 
 ## 运行
 
 ```bash
-# 处理单道题
+# 处理单道题（使用 config.json 中的 pipeline）
 python3 run.py problems/example_single
 
 # 处理一批题（自动识别多题模式）
 python3 run.py problems/example_multiple
+
+# 指定 pipeline（覆盖 config.json）
+python3 run.py problems/example_single --pipeline parallel
+python3 run.py problems/example_single --pipeline debate
+python3 run.py problems/example_single --pipeline tree_search
 ```
+
+**Pipeline 选择建议：**
+
+| 题目类型 | 推荐 Pipeline | 理由 |
+|----------|--------------|------|
+| 常规计算题 | `standard` | 简单直接，资源消耗最少 |
+| 多解法题目 | `parallel` | 并行探索多种思路，选最优 |
+| 开放性探究 | `iterative` | 假设-验证循环，逐步逼近 |
+| 复杂综合题 | `debate` | 多角度分析，专家辩论收敛 |
+| 探索性问题 | `tree_search` | 试错+回溯，灵活决策 |
 
 ## 运行测试
 

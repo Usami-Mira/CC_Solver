@@ -2,5 +2,13 @@
   "model": "qwen3.6-plus",
   "pipeline": "standard",
   "timeout_seconds": 86400,
-  "max_concurrent_problems": 3
+  "max_concurrent_problems": 3,
+
+  "agent_models": {
+    "Planner": "qwen3.6-plus",
+    "Builder": "qwen3.6-plus",
+    "Evaluator": "qwen3.6-plus",
+    "Meta-Planner": "qwen3.6-plus",
+    "Secretary": "qwen3.6-plus"
+  }
 }

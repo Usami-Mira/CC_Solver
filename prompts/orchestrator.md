@@ -52,6 +52,40 @@ Agent 完成后状态更新规则：
 
 注意：每次启动某个 Agent 前才检查 `.state`，不要预先更新。Agent 失败（如 spawn.py 报错）时不更新状态，以便下次从该阶段重试。
 
+## 错误处理
+
+### 子进程超时处理
+- 每个 sub-Agent 调用设置超时时间（默认 900 秒）
+- 使用 Bash 的 `timeout` 命令或 Python 的 subprocess 超时机制
+- 超时后强制终止进程，记录错误到日志
+
+### 子进程失败重试
+- 如果 sub-Agent 失败（返回非零退出码或输出为空），重试一次
+- 重试时保持相同的 task 描述
+- 如果仍失败，记录错误并根据严重程度决定：
+  - **Planner 失败**：终止 pipeline，报告错误
+  - **Builder 失败**：如果有之前的 solution.md，继续使用；否则终止
+  - **Evaluator 失败**：假设 PASS，继续执行
+
+### 输出文件验证
+- 每次 sub-Agent 完成后，验证输出文件存在且非空：
+  ```bash
+  [ -s {workspace}/plan.md ] && echo "OK" || echo "FAILED"
+  ```
+- 如果文件为空或不存在，视为失败，触发重试逻辑
+
+### 优雅降级
+- 如果某个非关键阶段失败，尝试继续执行后续阶段
+- 在 final_summary.md 中记录所有错误和降级情况
+- 示例：
+  - Planner 成功但 Builder 失败 → 在 final_summary.md 中说明"求解失败，仅有计划"
+  - Builder 成功但 Evaluator 失败 → 假设 solution 正确，标记为"未审查"
+
+### 日志记录
+- 将所有错误写入 `{workspace}/.errors.log`
+- 格式：`[时间戳] [阶段] [错误类型] [错误信息]`
+- 在 final_summary.md 中包含错误摘要
+
 ## Git 版本控制
 
 每个题目的 workspace 目录已预初始化为 git 仓库。你负责在关键节点执行 git commit，以追踪解题进度。
