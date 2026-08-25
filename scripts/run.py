@@ -14,10 +14,21 @@ PROMPTS_DIR = ROOT / "prompts"
 SKILLS_DIR = PROMPTS_DIR / "skills"
 
 CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
-MODEL = CONFIG.get("model", "sonnet")
 PIPELINE = CONFIG.get("pipeline", "standard")
-TIMEOUT = CONFIG.get("timeout_seconds", 600)
 MAX_CONCURRENT = CONFIG.get("max_concurrent_problems", 3)
+
+# 读取当前 pipeline 的配置
+PIPELINE_CONFIG = CONFIG.get("configs", {}).get(PIPELINE, {})
+MODEL = PIPELINE_CONFIG.get("model", "sonnet")
+TIMEOUT = PIPELINE_CONFIG.get("timeout_seconds", 600)
+MAX_REVISIONS = PIPELINE_CONFIG.get("max_revisions", 2)
+AGENT_MODELS = PIPELINE_CONFIG.get("agent_models", {})
+
+# Pipeline-specific 配置
+MAX_ITERATIONS = PIPELINE_CONFIG.get("max_iterations", 10)
+MAX_ROUNDS = PIPELINE_CONFIG.get("max_rounds", 3)
+NUM_PLANNERS = PIPELINE_CONFIG.get("num_planners", 3)
+EPHEMERAL_TIMEOUT = PIPELINE_CONFIG.get("ephemeral_timeout", PIPELINE_CONFIG.get("calculation_timeout", 300))
 
 
 def read_prompt(name):
@@ -80,67 +91,98 @@ __pycache__/
     print(f"[git] initialized repo in {workspace}")
 
 
+def read_agent(name):
+    """Read an agent file from prompts/agents/ directory."""
+    path = PROMPTS_DIR / "agents" / f"{name}.md"
+    if not path.exists():
+        print(f"Warning: agent '{name}' not found at {path}")
+        return ""
+    return path.read_text(encoding="utf-8").strip()
+
+
+def read_pipeline(name):
+    """Read a pipeline config from prompts/pipelines/ directory."""
+    path = PROMPTS_DIR / "pipelines" / f"{name}.md"
+    if not path.exists():
+        print(f"Error: pipeline '{name}' not found at {path}")
+        sys.exit(1)
+    return path.read_text(encoding="utf-8").strip()
+
+
 def assemble_orchestrator_prompt():
     """Assemble the complete orchestrator system prompt from components."""
-    # Select orchestrator template based on pipeline type
+    # 读取通用 orchestrator
+    template = read_prompt("orchestrator_new")
+
+    # 读取 pipeline 配置
+    pipeline_config = read_pipeline(PIPELINE)
+
+    # 读取所需的 agents（根据 pipeline）
+    agents_dict = {}
     if PIPELINE == "standard":
-        template = read_prompt("orchestrator")
-        architecture_extra = ""
+        agents_dict = {
+            "planner": read_agent("planner"),
+            "builder": read_agent("builder"),
+            "evaluator": read_agent("evaluator"),
+        }
     elif PIPELINE == "parallel":
-        template = read_prompt("orchestrator_parallel")
-        architecture_extra = read_prompt("architecture_parallel")
-        meta_planner = read_prompt("meta_planner")
+        agents_dict = {
+            "planner": read_agent("planner"),
+            "meta_planner": read_agent("meta_planner"),
+            "builder": read_agent("builder"),
+            "evaluator": read_agent("evaluator"),
+        }
     elif PIPELINE == "iterative":
-        template = read_prompt("orchestrator_iterative")
-        architecture_extra = read_prompt("architecture_iterative")
-        explorer = read_prompt("explorer")
+        agents_dict = {
+            "explorer": read_agent("explorer"),
+            "builder": read_agent("builder"),
+            "evaluator": read_agent("evaluator"),
+        }
     elif PIPELINE == "debate":
-        template = read_prompt("orchestrator_debate")
-        architecture_extra = read_prompt("architecture_debate")
-        secretary = read_prompt("secretary")
-    elif PIPELINE == "tree_search":
-        template = read_prompt("orchestrator_tree_search")
-        architecture_extra = read_prompt("architecture_tree_search")
-        # strategist = read_prompt("strategist")
-        # validator = read_prompt("validator")
+        agents_dict = {
+            "theorist": read_agent("theorist"),
+            "computationalist": read_agent("computationalist"),
+            "experimentalist": read_agent("experimentalist"),
+            "critic": read_agent("critic"),
+            "secretary": read_agent("secretary"),
+            "builder": read_agent("builder"),
+            "evaluator": read_agent("evaluator"),
+        }
+    elif PIPELINE in ["tree_search", "adaptive"]:
+        agents_dict = {
+            "planner": read_agent("planner"),
+            "builder": read_agent("builder"),
+            "evaluator": read_agent("evaluator"),
+        }
     else:
         print(f"Error: unknown pipeline '{PIPELINE}'")
         sys.exit(1)
 
-    architecture = read_prompt("architecture")
-    planner = read_prompt("planner")
-    builder = read_prompt("builder")
-    evaluator = read_prompt("evaluator")
+    # 组装 agents 列表
+    agents_list = "\n\n".join([
+        f"### {name.replace('_', ' ').title()}\n\n{content}"
+        for name, content in agents_dict.items()
+    ])
+
+    # 读取 skills
     skills = read_skills()
 
-    # Combine base architecture with pipeline-specific architecture
-    full_architecture = architecture + "\n\n" + architecture_extra if architecture_extra else architecture
-
-    # Step 1: Insert all sections into template
+    # 组装完整 prompt
     prompt = template
-    prompt = prompt.replace("{architecture}", full_architecture)
-    prompt = prompt.replace("{planner_prompt}", planner 
-                            if PIPELINE != "tree_search" else read_prompt("planner_tree_search"))
-    prompt = prompt.replace("{builder_prompt}", builder)
-    prompt = prompt.replace("{evaluator_prompt}", evaluator)
+    prompt = prompt.replace("{pipeline}", PIPELINE)
+    prompt = prompt.replace("{pipeline_config}", pipeline_config)
+    prompt = prompt.replace("{agents_list}", agents_list)
     prompt = prompt.replace("{skills}", skills)
 
-    # Insert pipeline-specific prompts
-    if PIPELINE == "parallel":
-        prompt = prompt.replace("{meta_planner_prompt}", meta_planner)
-    elif PIPELINE == "iterative":
-        prompt = prompt.replace("{explorer_prompt}", explorer)
-    elif PIPELINE == "debate":
-        prompt = prompt.replace("{secretary_prompt}", secretary)
-    elif PIPELINE == "tree_search":
-        # prompt = prompt.replace("{planner_prompt}", read_prompt("planner_tree_search"))
-        prompt = prompt.replace("{builder_ephemeral_prompt}", read_prompt("builder_ephemeral"))
-        prompt = prompt.replace("{evaluator_ephemeral_prompt}", read_prompt("evaluator_ephemeral"))
-
-    # Step 2: Replace config variables globally (including inside skills)
-    # Runtime placeholders like {workspace} and {role} are preserved as-is
+    # 替换配置参数
     prompt = prompt.replace("{project_root}", str(ROOT))
     prompt = prompt.replace("{max_concurrent_problems}", str(MAX_CONCURRENT))
+    prompt = prompt.replace("{max_revisions}", str(MAX_REVISIONS))
+    prompt = prompt.replace("{max_iterations}", str(MAX_ITERATIONS))
+    prompt = prompt.replace("{max_rounds}", str(MAX_ROUNDS))
+    prompt = prompt.replace("{num_planners}", str(NUM_PLANNERS))
+    prompt = prompt.replace("{ephemeral_timeout}", str(EPHEMERAL_TIMEOUT))
+
     return prompt
 
 
@@ -151,7 +193,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Physics problem solver with multiple pipelines")
     parser.add_argument("workspace", nargs="?", default="problems/001", help="Problem workspace directory")
-    parser.add_argument("--pipeline", choices=["standard", "parallel", "iterative", "debate", "tree_search"],
+    parser.add_argument("--pipeline", choices=["standard", "parallel", "iterative", "debate", "tree_search", "adaptive"],
                        help="Override pipeline type from config.json")
     args = parser.parse_args()
 

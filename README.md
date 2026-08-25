@@ -2,7 +2,7 @@
 
 ## 简介
 
-本项目通过 Claude Code CLI 编排多个 Agent 自动解决物理题目。系统提供 **5 种解题策略（Pipeline）**，适应不同类型的问题：
+本项目通过 Claude Code CLI 编排多个 Agent 自动解决物理题目。系统提供 **6 种解题策略（Pipeline）**，适应不同类型的问题：
 
 | Pipeline | 策略 | 适用场景 |
 |----------|------|----------|
@@ -10,7 +10,8 @@
 | **Parallel** | 3×Planner 并行 → Meta-Planner 选优 → Builder → Evaluator | 多解法探索，需要最优方案 |
 | **Iterative** | Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代 | 开放性问题，需要逐步逼近 |
 | **Debate** | 3×专家（理论/计算/实验）辩论 → Secretary 综合 → Builder → Evaluator | 复杂问题，需要多角度分析 |
-| **Tree Search** | Planner 决策 → Ephemeral Builder-Evaluator 计算验证 → Final Builder → Evaluator | 探索性问题，需要试错和回溯 |
+| **Tree Search** | Planner 决策 → Ephemeral Builder-Evaluator 验证 → Final Builder → Evaluator | 探索性问题，需要试错和回溯 |
+| **Adaptive** | Planner 自适应决策 → Ephemeral Builder-Evaluator 验证 → 动态调整 → Final Builder → Evaluator | 需要逐步验证和策略调整的问题 |
 
 每道题支持断点续传，中断后可自动从上次进度继续。系统使用 Git 自动追踪解题过程的完整演变，支持查看每个阶段的变更历史和版本对比。
 
@@ -82,39 +83,71 @@ problems/
 
 ```json
 {
-  "model": "qwen3.6-plus",
   "pipeline": "standard",
-  "timeout_seconds": 86400,
   "max_concurrent_problems": 3,
-  "agent_models": {
-    "Planner": "qwen3.6-plus",
-    "Builder": "qwen3.6-plus",
-    "Evaluator": "qwen3.6-plus"
+
+  "configs": {
+    "standard": {
+      "model": "qwen3.6-plus",
+      "timeout_seconds": 600,
+      "max_revisions": 2,
+      "agent_models": {
+        "Planner": "qwen3.6-plus",
+        "Builder": "qwen3.6-plus",
+        "Evaluator": "qwen3.6-plus"
+      }
+    },
+
+    "adaptive": {
+      "model": "qwen3.6-plus",
+      "timeout_seconds": 600,
+      "max_iterations": 15,
+      "max_revisions": 2,
+      "ephemeral_timeout": 300,
+      "agent_models": {
+        "Planner": "qwen3.6-plus",
+        "Builder": "qwen3.6-plus",
+        "Evaluator": "qwen3.6-plus"
+      }
+    }
   }
 }
 ```
 
+**顶层字段：**
+
 | 字段 | 说明 |
 |------|------|
-| `model` | 默认使用的模型名，由 Claude Code CLI 的 `--model` 参数传递 |
-| `pipeline` | 解题策略：`standard` / `parallel` / `iterative` / `debate` / `tree_search` |
-| `timeout_seconds` | 单次调用的最大超时时间（秒），默认 86400（24 小时） |
-| `max_concurrent_problems` | 多题场景下同时并行处理的最大题目数，默认 3。设为 1 则串行处理 |
-| `agent_models` | （可选）为不同 Agent 配置不同模型，未指定的 Agent 使用默认 `model` |
+| `pipeline` | 当前使用的解题策略：`standard` / `parallel` / `iterative` / `debate` / `tree_search` / `adaptive` |
+| `max_concurrent_problems` | 多题场景下同时并行处理的最大题目数，默认 3 |
+
+**各 Pipeline 配置字段（在 `configs` 下）：**
+
+| 字段 | 适用 Pipeline | 说明 |
+|------|--------------|------|
+| `model` | 所有 | 默认使用的模型名 |
+| `timeout_seconds` | 所有 | 单次调用的最大超时时间（秒） |
+| `max_revisions` | 所有 | Builder-Evaluator 循环的最大修正次数 |
+| `max_iterations` | iterative, tree_search, adaptive | 迭代循环的最大次数 |
+| `max_rounds` | debate | 辩论轮数 |
+| `num_planners` | parallel | 并行 Planner 数量 |
+| `ephemeral_timeout` | tree_search, adaptive | Ephemeral Builder/Evaluator 超时（秒） |
+| `agent_models` | 所有 | 为不同 Agent 配置不同模型 |
 
 ## 运行
 
 ```bash
 # 处理单道题（使用 config.json 中的 pipeline）
-python3 run.py problems/example_single
+python3 scripts/run.py problems/example_single
 
 # 处理一批题（自动识别多题模式）
-python3 run.py problems/example_multiple
+python3 scripts/run.py problems/example_multiple
 
 # 指定 pipeline（覆盖 config.json）
-python3 run.py problems/example_single --pipeline parallel
-python3 run.py problems/example_single --pipeline debate
-python3 run.py problems/example_single --pipeline tree_search
+python3 scripts/run.py problems/example_single --pipeline parallel
+python3 scripts/run.py problems/example_single --pipeline debate
+python3 scripts/run.py problems/example_single --pipeline tree_search
+python3 scripts/run.py problems/example_single --pipeline adaptive
 ```
 
 **Pipeline 选择建议：**
@@ -126,12 +159,13 @@ python3 run.py problems/example_single --pipeline tree_search
 | 开放性探究 | `iterative` | 假设-验证循环，逐步逼近 |
 | 复杂综合题 | `debate` | 多角度分析，专家辩论收敛 |
 | 探索性问题 | `tree_search` | 试错+回溯，灵活决策 |
+| 需要验证的问题 | `adaptive` | 逐步验证，动态调整策略 |
 
 ## 运行测试
 
 ```bash
 # 运行 Git 集成测试（权限配置、Git 初始化等）
-python3 test_git_integration.py -v
+python3 scripts/test_git_integration.py -v
 
 # 运行文本处理管道测试（分块、token 估算等）
 python3 textbook/run_tests.py
@@ -204,17 +238,33 @@ git diff HEAD~2 solution.md
 ```
 .
 ├── config.json              # 项目配置（模型名、超时时间、并行数）
-├── run.py                   # 入口脚本：组装 Orchestrator prompt 并启动
-├── spawn.py                 # 子进程辅助脚本：创建 Planner/Builder/Evaluator，含权限配置
 ├── CLAUDE.md                # Claude Code 项目配置
 ├── PROJECT_STRUCTURE.md     # 详细项目结构和开发指南
-├── test_git_integration.py  # Git 集成单元测试
+├── scripts/                 # 脚本目录
+│   ├── run.py               # 入口脚本：组装 Orchestrator prompt 并启动
+│   ├── spawn.py             # 子进程辅助脚本：创建 Planner/Builder/Evaluator，含权限配置
+│   ├── stream_parser.py     # 流式输出解析器
+│   └── test_git_integration.py  # Git 集成单元测试
 ├── prompts/                 # Agent 定义和 Skill 定义
-│   ├── orchestrator.md      # Orchestrator system prompt（含 Git 工作流）
-│   ├── planner.md           # Planner system prompt
-│   ├── builder.md           # Builder system prompt
-│   ├── evaluator.md         # Evaluator system prompt
-│   ├── architecture.md      # 执行顺序和反馈规则
+│   ├── orchestrator.md      # 通用 Orchestrator system prompt
+│   ├── agents/              # 各 Agent 定义
+│   │   ├── planner.md
+│   │   ├── builder.md
+│   │   ├── evaluator.md
+│   │   ├── meta_planner.md
+│   │   ├── explorer.md
+│   │   ├── secretary.md
+│   │   ├── theorist.md
+│   │   ├── computationalist.md
+│   │   ├── experimentalist.md
+│   │   └── critic.md
+│   ├── pipelines/           # 各 Pipeline 配置
+│   │   ├── standard.md
+│   │   ├── parallel.md
+│   │   ├── iterative.md
+│   │   ├── debate.md
+│   │   ├── tree_search.md
+│   │   └── adaptive.md
 │   └── skills/              # Skill 定义
 │       ├── calculation.md
 │       ├── dimension_check.md
@@ -369,7 +419,7 @@ AGENT_PROFILES = {
 如果需要临时调整权限，可以通过 `spawn.py` 的 `--tools` 参数覆盖：
 
 ```bash
-python3 spawn.py Planner problems/example --tools "Read,Write,Bash"
+python3 scripts/spawn.py Planner problems/example --tools "Read,Write,Bash"
 ```
 
 但通常不需要手动调整，默认配置已针对各 Agent 的职责优化。

@@ -6,37 +6,54 @@
 
 | 文件 | 用途 | 修改频率 |
 |------|------|----------|
-| `run.py` | 入口脚本，启动 Orchestrator | 低 |
-| `spawn.py` | 子进程辅助，创建 Planner/Builder/Evaluator | 低 |
+| `scripts/run.py` | 入口脚本，启动 Orchestrator | 低 |
+| `scripts/spawn.py` | 子进程辅助，创建 Planner/Builder/Evaluator | 低 |
+| `scripts/stream_parser.py` | 流式输出解析器 | 低 |
 | `config.json` | 项目配置（模型、超时、并行数） | 低 |
-| `prompts/orchestrator.md` | Orchestrator 系统提示词 | 中 |
-| `prompts/planner.md` | Planner 系统提示词 | 中 |
-| `prompts/builder.md` | Builder 系统提示词 | 中 |
-| `prompts/evaluator.md` | Evaluator 系统提示词 | 中 |
-| `prompts/architecture.md` | 执行流程和反馈规则 | 低 |
+| `prompts/orchestrator.md` | 通用 Orchestrator 系统提示词 | 中 |
+| `prompts/agents/*.md` | 各 Agent 系统提示词 | 中 |
+| `prompts/pipelines/*.md` | 各 Pipeline 配置 | 中 |
 | `prompts/skills/*.md` | Skill 定义（可调用能力） | 中 |
 
 ## 目录结构详解
 
 ```
-CC_Integrater/
-├── run.py                    # 入口：组装 Orchestrator prompt 并启动
-├── spawn.py                  # 子进程创建：被 Orchestrator 调用
+CC_Solver/
 ├── config.json               # 运行时配置
 ├── CLAUDE.md                 # Claude Code 项目配置
 ├── README.md                 # 用户文档
 ├── PROJECT_STRUCTURE.md      # 本文档
 │
+├── scripts/                  # 脚本目录
+│   ├── run.py                #   入口：组装 Orchestrator prompt 并启动
+│   ├── spawn.py              #   子进程创建：被 Orchestrator 调用
+│   ├── stream_parser.py      #   流式输出解析器
+│   └── test_git_integration.py # Git 集成单元测试
+│
 ├── prompts/                  # Agent 定义
-│   ├── orchestrator.md       #   Orchestrator prompt（含模板变量）
-│   ├── planner.md            #   Planner prompt
-│   ├── builder.md            #   Builder prompt
-│   ├── evaluator.md          #   Evaluator prompt
-│   ├── architecture.md       #   执行顺序和反馈规则
+│   ├── orchestrator.md       #   通用 Orchestrator prompt（含模板变量）
+│   ├── agents/               #   各 Agent 定义
+│   │   ├── planner.md
+│   │   ├── builder.md
+│   │   ├── evaluator.md
+│   │   ├── meta_planner.md
+│   │   ├── explorer.md
+│   │   ├── secretary.md
+│   │   ├── theorist.md
+│   │   ├── computationalist.md
+│   │   ├── experimentalist.md
+│   │   └── critic.md
+│   ├── pipelines/            #   各 Pipeline 配置
+│   │   ├── standard.md
+│   │   ├── parallel.md
+│   │   ├── iterative.md
+│   │   ├── debate.md
+│   │   ├── tree_search.md
+│   │   └── adaptive.md
 │   └── skills/               #   可调用的 Skill
-│       ├── calculation.md    #     数值计算
-│       ├── dimension_check.md #    量纲检查
-│       └── knowledge_base.md #     知识库查询
+│       ├── calculation.md
+│       ├── dimension_check.md
+│       └── knowledge_base.md
 │
 ├── problems/                 # 题目工作区（每题一个子目录）
 │   └── <exam>/
@@ -50,24 +67,22 @@ CC_Integrater/
 │           ├── .git/              # Git 仓库（自动创建）
 │           └── .*.result/metrics  # 内部缓存
 │
-├── textbook/                 # 教科书 RAG 知识库
-│   ├── rag_build/            #   RAG 构建脚本
-│   │   ├── chunk_markdown.py #     文本分块
-│   │   ├── translate_chunks.py #   中英翻译
-│   │   └── embed_bge.py      #     向量嵌入
-│   ├── fix_formulas.py       #   OCR 公式修正
-│   ├── mcp_server.py         #   MCP 服务器（Cherry Studio 集成）
-│   ├── weaviate_data/        #   Weaviate 向量数据库
-│   ├── models/               #   嵌入模型（BGE-M3）
-│   └── rag_env/              #   Python 虚拟环境
-│
-└── test_git_integration.py   # Git 集成单元测试
+└── textbook/                 # 教科书 RAG 知识库
+    ├── rag_build/            #   RAG 构建脚本
+    │   ├── chunk_markdown.py #     文本分块
+    │   ├── translate_chunks.py #   中英翻译
+    │   └── embed_bge.py      #     向量嵌入
+    ├── fix_formulas.py       #   OCR 公式修正
+    ├── mcp_server.py         #   MCP 服务器（Cherry Studio 集成）
+    ├── weaviate_data/        #   Weaviate 向量数据库
+    ├── models/               #   嵌入模型（BGE-M3）
+    └── rag_env/              #   Python 虚拟环境
 ```
 
 ## 核心组件交互
 
 ```
-用户运行: python3 run.py problems/example
+用户运行: python3 scripts/run.py problems/example
                     │
                     ▼
               ┌─────────────┐
@@ -107,11 +122,11 @@ CC_Integrater/
 **场景**：调整 Planner/Builder/Evaluator 的输出格式或策略
 
 **步骤**：
-1. 编辑 `prompts/<role>.md`
-2. 测试：`python3 run.py problems/test_simple`
+1. 编辑 `prompts/agents/<role>.md`
+2. 测试：`python3 scripts/run.py problems/test_simple`
 3. 检查输出：`cat problems/test_simple/<role>.md`
 
-**注意**：`orchestrator.md` 中的 `{planner_prompt}` 等占位符会被替换为对应 prompt 内容。
+**注意**：`orchestrator.md` 中的 `{pipeline_config}` 等占位符会被替换为对应 Pipeline 配置内容。
 
 ### 2. 添加新 Skill
 
@@ -126,7 +141,7 @@ CC_Integrater/
 
 **场景**：调整 sub-Agent 可使用的工具
 
-**位置**：`spawn.py` 中的 `AGENT_PROFILES` 字典
+**位置**：`scripts/spawn.py` 中的 `AGENT_PROFILES` 字典
 
 **示例**：允许 Builder 使用 `git log`：
 ```python
@@ -144,11 +159,11 @@ CC_Integrater/
 
 ```bash
 # 运行所有单元测试
-python3 test_git_integration.py -v
+python3 scripts/test_git_integration.py -v
 python3 textbook/test_smart_chunk.py -v
 
 # 运行端到端测试（会调用 API）
-python3 run.py problems/test_simple
+python3 scripts/run.py problems/test_simple
 ```
 
 ### 5. 调试 Git 提交
@@ -168,13 +183,38 @@ git diff HEAD~1 solution.md
 
 ```json
 {
-  "model": "qwen3.6-plus",        // 使用的模型名
-  "timeout_seconds": 86400,        // 单次调用超时（秒）
-  "max_concurrent_problems": 3     // 最大并行题目数
+  "pipeline": "standard",              // 当前使用的 pipeline
+  "max_concurrent_problems": 3,        // 最大并行题目数
+  
+  "configs": {                         // 各 Pipeline 的独立配置
+    "standard": {
+      "model": "qwen3.6-plus",         // 使用的模型名
+      "timeout_seconds": 600,          // 单次调用超时（秒）
+      "max_revisions": 2,              // Builder-Evaluator 循环次数
+      "agent_models": {                // 为不同 Agent 配置不同模型
+        "Planner": "qwen3.6-plus",
+        "Builder": "qwen3.6-plus",
+        "Evaluator": "qwen3.6-plus"
+      }
+    },
+    
+    "adaptive": {
+      "model": "qwen3.6-plus",
+      "timeout_seconds": 600,
+      "max_iterations": 15,            // 迭代循环最大次数
+      "max_revisions": 2,
+      "ephemeral_timeout": 300,        // 临时 Builder/Evaluator 超时
+      "agent_models": {
+        "Planner": "qwen3.6-plus",
+        "Builder": "qwen3.6-plus",
+        "Evaluator": "qwen3.6-plus"
+      }
+    }
+  }
 }
 ```
 
-### AGENT_PROFILES（spawn.py）
+### AGENT_PROFILES（scripts/spawn.py）
 
 控制每个 Agent 可使用的工具：
 - `Read`, `Write`, `Edit` — 文件操作
@@ -259,17 +299,17 @@ Orchestrator 在以下节点自动提交：
 
 ### 添加新 Agent 角色
 
-1. 在 `prompts/` 下创建 `<role>.md`
-2. 在 `spawn.py` 的 `AGENT_PROFILES` 中添加配置
-3. 更新 `orchestrator.md` 中的工作流
-4. 更新 `architecture.md` 中的执行顺序图
+1. 在 `prompts/agents/` 下创建 `<role>.md`
+2. 在 `scripts/spawn.py` 的 `AGENT_PROFILES` 中添加配置
+3. 在 `scripts/run.py` 的 `assemble_orchestrator_prompt()` 中添加 agent 读取逻辑
+4. 在相关 `prompts/pipelines/*.md` 中引用新 Agent
 
-### 添加多 Pipeline 支持
+### 添加新 Pipeline
 
-当前只有单一 Pipeline（Planner → Builder → Evaluator）。未来可以：
-1. 创建 `pipelines/` 目录，每种 Pipeline 一个配置文件
-2. 在 `config.json` 中指定使用的 Pipeline
-3. `run.py` 根据配置选择不同流程
+1. 在 `prompts/pipelines/` 下创建 `<pipeline_name>.md`
+2. 在 `config.json` 的 `configs` 中添加对应配置
+3. 在 `scripts/run.py` 的 `assemble_orchestrator_prompt()` 中添加 pipeline 处理逻辑
+4. 更新 README.md 中的 Pipeline 表格
 
 ## 测试覆盖
 
