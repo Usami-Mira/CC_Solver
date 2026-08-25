@@ -53,7 +53,7 @@ def query_weaviate(query_text, top_k=5):
     results = collection.query.near_vector(
         near_vector=query_vec,
         limit=top_k,
-        return_properties=["book", "chapter", "section", "title", "titleEn", "content", "contentEn"]
+        return_properties=["book", "chapter", "section", "title", "content", "type"]
     )
 
     client.close()
@@ -67,8 +67,12 @@ def format_results(query, objects):
     for i, obj in enumerate(objects):
         p = obj.properties
         lines.append(f"\n[{i+1}] {p['title']}")
-        lines.append(f"    EN: {p['titleEn']}")
-        lines.append(f"    Book: {p['book']} | Chapter: {p['chapter']} | Section: {p['section']}")
+
+        title_en = p.get('titleEn', '')
+        if title_en and title_en != p['title']:
+            lines.append(f"    EN: {title_en}")
+
+        lines.append(f"    Book: {p['book']} | Chapter: {p.get('chapter', '')} | Section: {p.get('section', '')}")
 
         content = p['content']
         if len(content) > 500:
@@ -101,10 +105,10 @@ def main():
             p = obj.properties
             results.append({
                 "book": p['book'],
-                "chapter": p['chapter'],
-                "section": p['section'],
+                "chapter": p.get('chapter', ''),
+                "section": p.get('section', ''),
                 "title": p['title'],
-                "title_en": p['titleEn'],
+                "title_en": p.get('titleEn', ''),
                 "content": p['content'],
                 "content_en": p.get('contentEn', ''),
             })

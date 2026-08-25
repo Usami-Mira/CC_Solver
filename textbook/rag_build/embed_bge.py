@@ -75,7 +75,7 @@ def setup_weaviate():
 
 def main():
     base_dir = Path(__file__).parent.parent / 'merged'
-    chunks_file = base_dir / 'chunks_final.json'
+    chunks_file = base_dir / 'chunks_combined.json'
 
     print(f"Loading chunks from {chunks_file}...")
     with open(chunks_file, 'r', encoding='utf-8') as f:
@@ -125,8 +125,15 @@ def main():
 
     print(f"\nDone! Inserted {inserted} chunks into Weaviate")
 
-    # Test queries (Chinese)
-    test_queries = ["库仑定律", "牛顿第二定律", "能量守恒", "电偶极子电场"]
+    # Test queries (Chinese and English)
+    test_queries = [
+        "库仑定律",
+        "牛顿第二定律",
+        "conformal field theory",
+        "Mellin-Barnes integral",
+        "hypergeometric function",
+        "complex analysis residue theorem"
+    ]
     for q in test_queries:
         print(f"\n{'='*60}")
         print(f"Testing: {q}")

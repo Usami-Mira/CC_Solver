@@ -5,8 +5,8 @@
   "configs": {
     "standard": {
       "model": "qwen3.6-plus",
-      "timeout_seconds": 600,
-      "max_revisions": 2,
+      "timeout_seconds": 3600,
+      "max_revisions": 8,
       "agent_models": {
         "Planner": "qwen3.6-plus",
         "Builder": "qwen3.6-plus",
@@ -16,9 +16,9 @@
 
     "parallel": {
       "model": "qwen3.6-plus",
-      "timeout_seconds": 600,
+      "timeout_seconds": 3600,
       "num_planners": 3,
-      "max_revisions": 2,
+      "max_revisions": 8,
       "agent_models": {
         "Planner": "qwen3.6-plus",
         "Meta-Planner": "qwen3.6-plus",
@@ -29,9 +29,9 @@
 
     "iterative": {
       "model": "qwen3.6-plus",
-      "timeout_seconds": 600,
-      "max_iterations": 5,
-      "max_revisions": 2,
+      "timeout_seconds": 3600,
+      "max_iterations": 12,
+      "max_revisions": 8,
       "agent_models": {
         "Explorer": "qwen3.6-plus",
         "Builder": "qwen3.6-plus",
@@ -41,9 +41,9 @@
 
     "debate": {
       "model": "qwen3.6-plus",
-      "timeout_seconds": 600,
-      "max_rounds": 3,
-      "max_revisions": 2,
+      "timeout_seconds": 3600,
+      "max_rounds": 5,
+      "max_revisions": 8,
       "agent_models": {
         "Theorist": "qwen3.6-plus",
         "Computationalist": "qwen3.6-plus",
@@ -57,10 +57,10 @@
 
     "tree_search": {
       "model": "qwen3.6-plus",
-      "timeout_seconds": 600,
-      "max_iterations": 10,
-      "max_revisions": 2,
-      "ephemeral_timeout": 300,
+      "timeout_seconds": 3600,
+      "max_iterations": 20,
+      "max_revisions": 8,
+      "ephemeral_timeout": 600,
       "agent_models": {
         "Planner": "qwen3.6-plus",
         "Builder": "qwen3.6-plus",
@@ -70,10 +70,10 @@
 
     "adaptive": {
       "model": "qwen3.6-plus",
-      "timeout_seconds": 600,
-      "max_iterations": 15,
-      "max_revisions": 2,
-      "calculation_timeout": 300,
+      "timeout_seconds": 3600,
+      "max_iterations": 25,
+      "max_revisions": 8,
+      "calculation_timeout": 600,
       "agent_models": {
         "Planner": "qwen3.6-plus",
         "Builder": "qwen3.6-plus",

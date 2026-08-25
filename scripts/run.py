@@ -6,11 +6,13 @@ Streams Orchestrator output to terminal and log file in real-time.
 import sys, os, json, subprocess, time
 from pathlib import Path
 
-ROOT = Path(__file__).parent.resolve()
-sys.path.insert(0, str(ROOT))
+ROOT = Path(__file__).parent.parent.resolve()
+SCRIPTS_DIR = Path(__file__).parent.resolve()
+sys.path.insert(0, str(SCRIPTS_DIR))
 from stream_parser import parse_stream_event
 
 PROMPTS_DIR = ROOT / "prompts"
+SKILLS_DIR = PROMPTS_DIR / "skills"
 SKILLS_DIR = PROMPTS_DIR / "skills"
 
 CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
@@ -112,7 +114,7 @@ def read_pipeline(name):
 def assemble_orchestrator_prompt():
     """Assemble the complete orchestrator system prompt from components."""
     # 读取通用 orchestrator
-    template = read_prompt("orchestrator_new")
+    template = read_prompt("orchestrator")
 
     # 读取 pipeline 配置
     pipeline_config = read_pipeline(PIPELINE)
