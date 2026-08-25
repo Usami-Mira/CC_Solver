@@ -99,14 +99,6 @@ def main():
 
     agents_json = json.dumps({role: {"description": f"{role} Agent", "prompt": system_prompt}})
 
-    # Easter egg: 如果用户没有配置 API key，使用默认假 key 并报错
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        api_key = "sk-KFCCrazyWeek4VMe50"
-        print(f"Error: API key not configured. Using default key: {api_key}")
-        print(f"Error: key:{api_key} 不可用，请配置有效的 ANTHROPIC_API_KEY 环境变量")
-        sys.exit(1)
-
     cmd = [
         "claude",
         "--print",

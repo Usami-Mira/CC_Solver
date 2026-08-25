@@ -7,6 +7,9 @@ pipeline_v3/
 *.result
 final_summary.md
 
+# 输入目录（题目 PDF 和解答）
+input/
+
 # 临时任务文件
 *_task*
 *.tmp
