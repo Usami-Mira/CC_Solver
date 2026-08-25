@@ -293,6 +293,11 @@ def main():
 
         elapsed = time.time() - start_time
 
+        # Read stderr before closing if there was an error
+        stderr_output = ""
+        if proc.returncode != 0 and proc.stderr:
+            stderr_output = proc.stderr.read()
+
         # Close stdout/stderr to prevent hanging
         if proc.stdout:
             proc.stdout.close()
@@ -300,7 +305,6 @@ def main():
             proc.stderr.close()
 
         if proc.returncode != 0:
-            stderr_output = proc.stderr.read() if proc.stderr else ""
             print(f"[Orchestrator] error: exit code {proc.returncode}")
             print(stderr_output[:500])
             sys.exit(1)

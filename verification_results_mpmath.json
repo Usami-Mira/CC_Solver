@@ -1,0 +1,42 @@
+[
+  {
+    "xi": 0.05,
+    "error_msg": "Hypergeometric series converges too slowly. Try increasing maxterms.",
+    "status": "ERROR"
+  },
+  {
+    "xi": 0.1,
+    "error_msg": "Hypergeometric series converges too slowly. Try increasing maxterms.",
+    "status": "ERROR"
+  },
+  {
+    "xi": 0.2,
+    "error_msg": "Hypergeometric series converges too slowly. Try increasing maxterms.",
+    "status": "ERROR"
+  },
+  {
+    "xi": 0.3,
+    "error_msg": "Hypergeometric series converges too slowly. Try increasing maxterms.",
+    "status": "ERROR"
+  },
+  {
+    "xi": 0.5,
+    "error_msg": "Hypergeometric series converges too slowly. Try increasing maxterms.",
+    "status": "ERROR"
+  },
+  {
+    "xi": 0.7,
+    "error_msg": "Hypergeometric series converges too slowly. Try increasing maxterms.",
+    "status": "ERROR"
+  },
+  {
+    "xi": 0.9,
+    "error_msg": "Hypergeometric series converges too slowly. Try increasing maxterms.",
+    "status": "ERROR"
+  },
+  {
+    "xi": 0.95,
+    "error_msg": "Hypergeometric series converges too slowly. Try increasing maxterms.",
+    "status": "ERROR"
+  }
+]

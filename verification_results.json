@@ -1,0 +1,90 @@
+[
+  {
+    "xi": 0.05,
+    "numerical": 0.0,
+    "polynomial": -1006.3548935497504,
+    "error": 1006.3548935497504,
+    "rel_error": 1.0,
+    "status": "FAIL"
+  },
+  {
+    "xi": 0.1,
+    "numerical": 0.0,
+    "polynomial": -89632.63298897834,
+    "error": 89632.63298897834,
+    "rel_error": 1.0,
+    "status": "FAIL"
+  },
+  {
+    "xi": 0.2,
+    "numerical": 0.0,
+    "polynomial": -58887.881711221824,
+    "error": 58887.881711221824,
+    "rel_error": 1.0,
+    "status": "FAIL"
+  },
+  {
+    "xi": 0.3,
+    "numerical": 0.0,
+    "polynomial": 25040.252509822683,
+    "error": 25040.252509822683,
+    "rel_error": 1.0,
+    "status": "FAIL"
+  },
+  {
+    "xi": 0.4,
+    "numerical": 0.0,
+    "polynomial": 59505.33195762907,
+    "error": 59505.33195762907,
+    "rel_error": 1.0,
+    "status": "FAIL"
+  },
+  {
+    "xi": 0.5,
+    "numerical": 0.0,
+    "polynomial": 42590.68930364202,
+    "error": 42590.68930364202,
+    "rel_error": 1.0,
+    "status": "FAIL"
+  },
+  {
+    "xi": 0.6,
+    "numerical": 0.0,
+    "polynomial": 6621.681978408189,
+    "error": 6621.681978408189,
+    "rel_error": 1.0,
+    "status": "FAIL"
+  },
+  {
+    "xi": 0.7,
+    "numerical": 0.0,
+    "polynomial": -18993.55194258038,
+    "error": 18993.55194258038,
+    "rel_error": 1.0,
+    "status": "FAIL"
+  },
+  {
+    "xi": 0.8,
+    "numerical": 0.0,
+    "polynomial": -22546.868260927033,
+    "error": 22546.868260927033,
+    "rel_error": 1.0,
+    "status": "FAIL"
+  },
+  {
+    "xi": 0.9,
+    "numerical": 0.0,
+    "polynomial": -9388.453507952392,
+    "error": 9388.453507952392,
+    "rel_error": 1.0,
+    "status": "FAIL"
+  },
+  {
+    "xi": 0.95,
+    "numerical": 0.0,
+    "polynomial": -697.4826505444944,
+    "error": 697.4826505444944,
+    "rel_error": 1.0,
+    "status": "FAIL"
+  }
+]
