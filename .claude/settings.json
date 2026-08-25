@@ -3,8 +3,12 @@
     "PreToolUse": [
       {
         "matcher": "Write|Edit|NotebookEdit",
-        "command": "python3 .claude/hooks/check_workspace.py",
-        "description": "Ensure file operations are within workspace"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/check_workspace.py"
+          }
+        ]
       }
     ]
   }
