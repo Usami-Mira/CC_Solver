@@ -9,6 +9,7 @@
 | `scripts/run.py` | 入口脚本，启动 Orchestrator | 低 |
 | `scripts/spawn.py` | 子进程辅助，创建 Planner/Builder/Evaluator | 低 |
 | `scripts/stream_parser.py` | 流式输出解析器 | 低 |
+| `setup.sh` | 一键安装（RAG 虚拟环境 + 依赖） | 低 |
 | `config.json` | 项目配置（模型、超时、并行数） | 低 |
 | `prompts/orchestrator.md` | 通用 Orchestrator 系统提示词 | 中 |
 | `prompts/agents/*.md` | 各 Agent 系统提示词 | 中 |
@@ -20,6 +21,7 @@
 ```
 CC_Solver/
 ├── config.json               # 运行时配置
+├── setup.sh                  # 一键安装脚本（RAG 虚拟环境 + 依赖）
 ├── CLAUDE.md                 # Claude Code 项目配置
 ├── README.md                 # 用户文档
 ├── PROJECT_STRUCTURE.md      # 本文档
@@ -28,7 +30,8 @@ CC_Solver/
 │   ├── run.py                #   入口：组装 Orchestrator prompt 并启动
 │   ├── spawn.py              #   子进程创建：被 Orchestrator 调用
 │   ├── stream_parser.py      #   流式输出解析器
-│   └── test_git_integration.py # Git 集成单元测试
+│   ├── test_git_integration.py # Git 集成单元测试
+│   └── test_hang_kill.py     #   进程挂起防护回归测试
 │
 ├── prompts/                  # Agent 定义
 │   ├── orchestrator.md       #   通用 Orchestrator prompt（含模板变量）
@@ -316,6 +319,7 @@ Orchestrator 在以下节点自动提交：
 | 测试文件 | 覆盖范围 | 类型 |
 |----------|----------|------|
 | `test_git_integration.py` | Git 初始化、权限配置 | 干测试（无 API 调用） |
+| `test_hang_kill.py` | sub-Agent 挂起防护：result 事件截断、宽限期、进程组清理 | 干测试（模拟子进程） |
 | `textbook/test_smart_chunk.py` | 文本分块算法 | 干测试 |
 | `textbook/test_mcp.py` | MCP 服务器 | 干测试 |
 

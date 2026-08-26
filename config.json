@@ -1,5 +1,5 @@
 {
-  "pipeline": "standard",
+  "pipeline": "adaptive",
   "max_concurrent_problems": 3,
 
   "configs": {

@@ -102,4 +102,5 @@ $$ = (L_1 + L_2 \pm 2M)\dot{I} $$
    正则角动量 $\vec r\times(m\vec v+q\vec A)$ 守恒。$\vec r\times(m\vec v+q\vec A)=\vec L_z+q\frac{\Phi}{2\pi}\vec e_z$。
    （话说，正则角动量有没有什么统一的符号啊。）
 2. $\chi=c\phi$ 在空间中具有多值性，$\nabla\chi$ 定义不明确，无法做为合法的标量势。
-   正则角动量始终守恒。$\Delta $
+   正则角动量并非始终守恒。取 $\chi=Cx^2$，则 $\Delta \vec A=\nabla\chi=2Cx\vec e_x$，电磁角动量不一定守恒。而机械角动量始终守恒，故正则角动量不一定守恒。
+   机械量肯定是不变的；磁矢势的环量即磁通量也是不变的。

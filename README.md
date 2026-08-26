@@ -47,6 +47,16 @@ git --version
 
 **注意**：Git 用于追踪每道题的解题过程演变（plan → solution → review），支持自动提交和迭代历史查看。
 
+### 安装项目依赖
+
+首次使用或依赖变更时，运行项目根目录的安装脚本：
+
+```bash
+bash setup.sh
+```
+
+这会自动创建 `textbook/rag_env` 虚拟环境并安装 RAG 知识库所需的全部依赖（PyTorch、FlagEmbedding、Weaviate 客户端等）。
+
 ### 配置 API Key（按量计费模式）
 
 如果使用第三方兼容 API（如硅基流动等），设置环境变量：
@@ -167,6 +177,9 @@ python3 scripts/run.py problems/example_single --pipeline adaptive
 # 运行 Git 集成测试（权限配置、Git 初始化等）
 python3 scripts/test_git_integration.py -v
 
+# 运行进程挂起防护测试（result 事件截断、进程组清理）
+python3 scripts/test_hang_kill.py
+
 # 运行文本处理管道测试（分块、token 估算等）
 python3 textbook/run_tests.py
 
@@ -238,13 +251,15 @@ git diff HEAD~2 solution.md
 ```
 .
 ├── config.json              # 项目配置（模型名、超时时间、并行数）
+├── setup.sh                 # 一键安装脚本（RAG 虚拟环境 + 依赖）
 ├── CLAUDE.md                # Claude Code 项目配置
 ├── PROJECT_STRUCTURE.md     # 详细项目结构和开发指南
 ├── scripts/                 # 脚本目录
 │   ├── run.py               # 入口脚本：组装 Orchestrator prompt 并启动
 │   ├── spawn.py             # 子进程辅助脚本：创建 Planner/Builder/Evaluator，含权限配置
 │   ├── stream_parser.py     # 流式输出解析器
-│   └── test_git_integration.py  # Git 集成单元测试
+│   ├── test_git_integration.py  # Git 集成单元测试
+│   └── test_hang_kill.py    # 进程挂起防护回归测试
 ├── prompts/                 # Agent 定义和 Skill 定义
 │   ├── orchestrator.md      # 通用 Orchestrator system prompt
 │   ├── agents/              # 各 Agent 定义

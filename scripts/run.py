@@ -3,7 +3,7 @@
 Streams Orchestrator output to terminal and log file in real-time.
 """
 
-import sys, os, json, subprocess, time
+import sys, os, json, signal, subprocess, threading, time
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent.resolve()
@@ -111,7 +111,22 @@ def read_pipeline(name):
     return path.read_text(encoding="utf-8").strip()
 
 
-def assemble_orchestrator_prompt():
+def kill_process_group(proc):
+    """杀掉子进程及其整个进程组（包括它派生的后台孤儿进程）。"""
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def assemble_orchestrator_prompt(workspace):
     """Assemble the complete orchestrator system prompt from components."""
     # 读取通用 orchestrator
     template = read_prompt("orchestrator")
@@ -178,6 +193,8 @@ def assemble_orchestrator_prompt():
 
     # 替换配置参数
     prompt = prompt.replace("{project_root}", str(ROOT))
+    prompt = prompt.replace("{workspace}", os.path.abspath(workspace))
+    prompt = prompt.replace("{timeout_seconds}", str(TIMEOUT))
     prompt = prompt.replace("{max_concurrent_problems}", str(MAX_CONCURRENT))
     prompt = prompt.replace("{max_revisions}", str(MAX_REVISIONS))
     prompt = prompt.replace("{max_iterations}", str(MAX_ITERATIONS))
@@ -218,13 +235,16 @@ def main():
     # Initialize git repo in workspace
     init_workspace_git(workspace)
 
-    orchestrator_prompt = assemble_orchestrator_prompt()
+    orchestrator_prompt = assemble_orchestrator_prompt(workspace)
     agents_json = json.dumps({
         "Orchestrator": {
             "description": f"Orchestrator — {PIPELINE} pipeline",
             "prompt": orchestrator_prompt,
         }
     })
+
+    # 绝对路径，避免 cwd 歧义
+    workspace_abs = os.path.abspath(workspace)
 
     cmd = [
         "claude",
@@ -236,13 +256,15 @@ def main():
         "--agents", agents_json,
         "--agent", "Orchestrator",
         "--allowed-tools", "Bash,Read,Write",
-        "--add-dir", workspace,
+        "--add-dir", workspace_abs,
         "--model", MODEL,
-        f"请解决 {workspace} 中的物理题目。\n"
-        f"按照你的 system prompt 中的工作方式和 Architecture 执行。\n"
-        f"创建子 Agent 的方法：Bash 调用 spawn.py <role> <workspace> <prompt_file> <task_file>\n"
-        f"全部阶段完成后，将最终结果写入 {workspace}/final_summary.md。\n"
-        f"工作目录: {workspace}",
+        f"请解决 {workspace_abs} 中的物理题目。\n"
+        f"按照你的 system prompt 中的流程执行。\n"
+        f"核心纪律：你不读题目、不做计算 — 只调度 sub-Agent，只读它们的 .result 汇报。\n"
+        f"开始前先 cat {workspace_abs}/.state 确认是否有断点；没有则从第一阶段开始。\n"
+        f"创建 sub-Agent：Bash 调用 python3 {SCRIPTS_DIR}/spawn.py <Role> {workspace_abs} <prompt_file> <task_file>\n"
+        f"全部阶段完成后，将最终结果写入 {workspace_abs}/final_summary.md。\n"
+        f"Workspace（绝对路径）: {workspace_abs}；你的 shell cwd 是项目根目录，所有文件操作请用上面的绝对路径。",
     ]
 
     # Stream output to terminal and log file
@@ -254,60 +276,57 @@ def main():
         log_file.write(f"[start] Orchestrator | pipeline={PIPELINE} | {time.strftime('%H:%M:%S')}\n")
         log_file.flush()
 
+        # start_new_session=True：orchestrator 自成进程组，超时可整组杀掉而不伤及 run.py。
+        # stderr 直接写日志文件而不用 PIPE，避免管道写满导致子进程阻塞。
         proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            cmd, stdout=subprocess.PIPE, stderr=log_file, text=True,
+            start_new_session=True,
         )
 
         result_event = None
 
-        for line in proc.stdout:
-            line = line.strip()
-            if not line:
-                continue
-            etype, summary, event = parse_stream_event(line)
-            if summary:
-                # Print concise progress to terminal
-                if etype == "tool_use":
-                    print(f"  → {summary}", flush=True)
-                elif etype == "text":
-                    # Only print first 100 chars of text to avoid spam
-                    print(f"  [{etype}] {summary[:100]}{'...' if len(summary) > 100 else ''}", flush=True)
-                elif etype == "init":
-                    print(f"  [{etype}] {summary}", flush=True)
-                elif etype == "result":
-                    print(f"  [{etype}] {summary}", flush=True)
-                # Write full summary to log
-                log_file.write(f"[{etype}] {summary}\n")
-                log_file.flush()
-            if etype == "result" and event:
-                result_event = event
+        def pump_stdout():
+            nonlocal result_event
+            for line in proc.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+                etype, summary, event = parse_stream_event(line)
+                if summary:
+                    # Print concise progress to terminal
+                    if etype == "tool_use":
+                        print(f"  → {summary}", flush=True)
+                    elif etype == "text":
+                        # Only print first 100 chars of text to avoid spam
+                        print(f"  [{etype}] {summary[:100]}{'...' if len(summary) > 100 else ''}", flush=True)
+                    elif etype == "init":
+                        print(f"  [{etype}] {summary}", flush=True)
+                    elif etype == "result":
+                        print(f"  [{etype}] {summary}", flush=True)
+                    # Write full summary to log
+                    log_file.write(f"[{etype}] {summary}\n")
+                    log_file.flush()
+                if etype == "result" and event:
+                    result_event = event
+                    return  # 拿到结果即返回，不等 EOF（进程可能被孤儿子进程卡住而不退出）
 
-        # Wait for process to complete with timeout
-        try:
-            proc.wait(timeout=TIMEOUT)
-        except subprocess.TimeoutExpired:
-            print(f"[Orchestrator] timeout after {TIMEOUT}s, killing process...")
-            proc.kill()
-            proc.wait()
+        pump_thread = threading.Thread(target=pump_stdout, daemon=True)
+        pump_thread.start()
+        pump_thread.join(timeout=TIMEOUT)
+
+        if pump_thread.is_alive():
+            print(f"[Orchestrator] timeout after {TIMEOUT}s, killing process group...")
+            kill_process_group(proc)
             sys.exit(1)
+
+        # 已拿到结果：给进程一小段宽限期自行退出；若被孤儿子进程卡住，杀掉进程组。
+        try:
+            proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            print("[Orchestrator] 产出结果后 15s 未退出，杀掉进程组以继续")
+            kill_process_group(proc)
 
         elapsed = time.time() - start_time
-
-        # Read stderr before closing if there was an error
-        stderr_output = ""
-        if proc.returncode != 0 and proc.stderr:
-            stderr_output = proc.stderr.read()
-
-        # Close stdout/stderr to prevent hanging
-        if proc.stdout:
-            proc.stdout.close()
-        if proc.stderr:
-            proc.stderr.close()
-
-        if proc.returncode != 0:
-            print(f"[Orchestrator] error: exit code {proc.returncode}")
-            print(stderr_output[:500])
-            sys.exit(1)
 
         if not result_event:
             print("[Orchestrator] error: no result event received")

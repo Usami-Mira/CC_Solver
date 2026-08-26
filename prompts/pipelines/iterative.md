@@ -38,6 +38,46 @@ Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代�
 - 输入：problem.md + hypothesis_{N}.md + experiment_{N}.md
 - 输出：`assessment_{N}.md`（第一行：PASS / PARTIAL / DEAD_END）
 - 权限：读相关文件，写 assessment_{N}.md
+- **差分：** 迭代评估模式下 `VERDICT` 词表为 `PASS` / `PARTIAL` / `DEAD_END`（以任务文件为准）；同时负责把本轮结论追加到 `exploration_history.md`（见执行协议）
+
+## Orchestrator 执行协议
+
+第 $n$ 轮循环（n 从 1 开始，最多 {max_iterations} 轮）。每轮依次写三个样板任务文件：
+
+`task_explorer_{n}.md`：
+
+```markdown
+# Task explorer_{n}
+
+请阅读 `{workspace}/problem.md` 和 `{workspace}/exploration_history.md`（如不存在则为第一轮）。
+提出一个新的假设，写入 `{workspace}/hypothesis_{n}.md`。
+```
+
+`task_builder_{n}.md`：
+
+```markdown
+# Task builder_{n}
+
+请阅读 `{workspace}/problem.md` 和 `{workspace}/hypothesis_{n}.md`，验证这个假设。
+将验证过程与结果写入 `{workspace}/experiment_{n}.md`，计算脚本放在 `{workspace}/scripts/`。
+```
+
+`task_evaluator_{n}.md`：
+
+```markdown
+# Task evaluator_{n}
+
+请阅读 `{workspace}/problem.md`、`{workspace}/hypothesis_{n}.md` 和 `{workspace}/experiment_{n}.md`，评估本轮进展。
+1. 将评估写入 `{workspace}/assessment_{n}.md`，**第一行必须是 PASS、PARTIAL 或 DEAD_END 之一**
+2. 将本轮结论追加到 `{workspace}/exploration_history.md`（假设要点 + 裁决 + 经验教训，不超过 5 行）
+```
+
+**路由（只依据 `.result` 的 HANDOFF，`VERDICT` 与 `assessment_{n}.md` 第一行一致）：**
+
+- Explorer `BLOCKED` → 重试一次；仍失败 → 记入 `.errors.log`，终止并写 final_summary.md
+- Builder `BLOCKED` → 本轮按 DEAD_END 处理，直接进入下一轮
+- Evaluator `VERDICT: PASS` → 再 spawn 一次 Builder，样板任务：「请基于 `{workspace}/hypothesis_{n}.md` 和 `{workspace}/experiment_{n}.md`，整理出完整解答，写入 `{workspace}/final_solution.md`」→ 写 final_summary.md，结束
+- `PARTIAL` / `DEAD_END` → 更新 `.state`，git commit，进入第 n+1 轮；达到 {max_iterations} 轮仍未 PASS → 写 final_summary.md（注明未收敛及最后一轮裁决）结束
 
 ## 状态管理
 

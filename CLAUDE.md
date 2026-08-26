@@ -1,14 +1,23 @@
 # Project Configuration
 
+## Setup
+
+首次使用或依赖变更时，运行：
+```bash
+bash setup.sh
+```
+
+这会自动创建 `textbook/rag_env` 虚拟环境并安装所有依赖。
+
 ## CRITICAL: Directory Structure and Working Directory
 
 **Project Root**: `/home/usamimira/PHY-LLM/CC_Solver`
 
 **Bash tool default working directory**: `/home/usamimira/PHY-LLM/CC_Solver`
 
-**IMPORTANT**: RAG scripts MUST run from `textbook/` subdirectory. Always use subshell with `cd`:
+**IMPORTANT**: RAG 查询使用 `textbook/rag_env/bin/python` 直接调用，**不要** source activate：
 ```bash
-(source rag_env/bin/activate && python3 rag_build/embed_bge.py)
+cd textbook && rag_env/bin/python rag_build/query_rag.py "your query"
 ```
 
 ### Directory Layout
@@ -44,9 +53,9 @@
     └── *_output/                          ← OCR output directories
 ```
 
-**Key Rule**: When running RAG scripts, the working directory MUST be `textbook/`. Use subshell:
+**Key Rule**: RAG 脚本使用 `textbook/rag_env/bin/python` 直接调用：
 ```bash
-(source rag_env/bin/activate && python3 rag_build/<script>.py)
+cd textbook && rag_env/bin/python rag_build/query_rag.py "查询内容"
 ```
 
 ## Key Paths
@@ -93,6 +102,17 @@ export HF_HUB_DISABLE_XET=1
 
 Orchestrator 负责编排，通过 `scripts/spawn.py` 创建 sub-agent。
 
+## Orchestrator 信息管制（重要设计原则）
+
+Orchestrator **只调度、不解题、不读题**。为防止上下文膨胀导致中断：
+
+- **禁止读**：`problem.md`、`strategy.md`、`calculation_*.md`、`solution.md`、`verification_*.md`/`review.md`（除第一行）、`.*.log`
+- **禁止做**：运行 `python3`、写脚本、做拟合、自己写含物理内容的任务文件
+- **只读**：`.{Role}.result`（sub-agent 简短汇报）、`.state`、裁决文件的**第一行**（`head -1`）
+- **通信通路**：每个 sub-agent 的最终消息被写入 `.{Role}.result`，格式固定为 `HANDOFF` + `STATUS/VERDICT` + `OUTPUT` + `SUMMARY`（≤5 行）
+- **断点续传**：所有决策信息写进 `.state`（auto-compact 后可恢复）
+- 验证任务文件 `task_{id}.md`（含物理细节）由 **Planner** 撰写；Orchestrator 只写不含物理内容的样板调度指令
+
 ## LaTeX Requirement
 
 All physics formulas must use LaTeX inline math (`$...$`), not Unicode symbols:
@@ -101,9 +121,10 @@ All physics formulas must use LaTeX inline math (`$...$`), not Unicode symbols:
 
 ## Common Pitfalls
 
-1. **Virtual environment path**: Always use absolute path `/home/usamimira/PHY-LLM/CC_Solver/textbook/rag_env/bin/activate`
-2. **Working directory**: RAG scripts expect to run from `textbook/` directory
+1. **RAG 调用方式**：使用 `textbook/rag_env/bin/python` 直接调用，不要 source activate
+2. **Working directory**: RAG 脚本从 `textbook/` 目录运行
 3. **BGEM3FlagModel parameter**: `devices=` not `device=`
 4. **Template variables**: Use `.replace()` not `.format()` to preserve runtime placeholders like `{workspace}`
 5. **HuggingFace downloads**: Must set `HF_ENDPOINT` and `HF_HUB_DISABLE_XET=1` for China mirror
 6. **Script paths**: Run scripts from project root, e.g., `python3 scripts/run.py`, not `python3 run.py`
+7. **Evaluator 必须检查代码**：Evaluator 必须先读取 Builder 的 scripts/ 目录，审查代码逻辑，然后才做独立验证

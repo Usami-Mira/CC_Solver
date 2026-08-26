@@ -43,6 +43,52 @@ REVISE → 回到 Builder（最多 {max_revisions} 次）
 - 输入：problem.md + solution.md
 - 输出：`review.md`
 
+## Orchestrator 执行协议
+
+### 阶段 1：{num_planners} 个 Planner 并行
+
+写样板任务 `task_planner_{i}.md`（i = 1..{num_planners}，仅输出文件名不同）：
+
+```markdown
+# Task planner_{i}
+
+请阅读 `{workspace}/problem.md`，独立制定一份解题计划。
+将计划写入 `{workspace}/plan_{i}.md`。
+```
+
+并行 spawn（Bash `&` + `wait`），角色名带编号以区分 `.result`：
+
+```bash
+python3 {project_root}/scripts/spawn.py Planner_1 {workspace} agents/planner task_planner_1.md &
+python3 {project_root}/scripts/spawn.py Planner_2 {workspace} agents/planner task_planner_2.md &
+python3 {project_root}/scripts/spawn.py Planner_3 {workspace} agents/planner task_planner_3.md &
+wait
+```
+
+然后依次读 `.Planner_1.result` … `.Planner_{num_planners}.result`。
+
+### 阶段 2：Meta-Planner 选择/合并
+
+`task_meta_planner.md`：
+
+```markdown
+# Task meta_planner
+
+请阅读 `{workspace}/problem.md` 和 `{workspace}/plan_1.md` … `plan_{num_planners}.md`，
+评估各方案，选择或合并出最优方案，并补充完整的计划结构（量纲预测、极端情况等）。
+将最终计划写入 `{workspace}/plan.md`。
+```
+
+### 阶段 3 / 4：Builder / Evaluator
+
+样板任务与路由同 Standard Pipeline（task_builder.md / task_evaluator.md，PASS/REVISE 循环）。
+
+**路由：**
+
+- 至少 2 个 Planner `STATUS: OK` → 进入 Meta-Planner；不足 2 个 → 记入 `.errors.log`，用已有 plan 降级继续（只有 1 个则直接将其作为 plan.md 的输入）
+- Meta-Planner `OK` → Builder → Evaluator → PASS/REVISE 循环（同 Standard）
+- 任一角色 `BLOCKED` → 重试一次，仍失败按上述降级策略处理
+
 ## 状态管理
 
 ```

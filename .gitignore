@@ -20,6 +20,8 @@ input/
 *.key
 *credentials*
 *secret*
+# secretary 是 Agent 角色文件，不是敏感信息
+!prompts/agents/secretary.md
 
 # === textbook/ 内的数据文件（不跟踪） ===
 

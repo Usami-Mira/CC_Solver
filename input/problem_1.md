@@ -19,5 +19,7 @@ Because this kernel is built from a hypergeometric-Gamma contour integrand, it i
 In the context of the heavy-state Energy-Energy Correlator (EEC), consider the source and sink to be half-BPS operators representing the heavy states. The relevant function basis $I_{m,p}(\xi)$ can be written as the following integral. Calculate
 $$
  I_{m,p}(\xi)=\int_{1/2-i \infty}^{1/2+i \infty} \frac{d t}{2 \pi i}t^{m} \sum_{k=0}^2  (-1)^k \binom{2}{k} \xi^{\frac{t}{2}-k}  {}_2F_1\left(-k+\frac{t}{2}+3,-k+\frac{t}{2}+3;-k+p+\frac{t}{2}+3;\xi\right)  \\
- \times \frac{\pi  t (t-2) (-2 k+t+2) (-2 k+t+4) \Gamma (p-1) \Gamma (p) \Gamma \left(p-\frac{t}{2}\right)}{128 \sin ^2\left(\frac{\pi  t}{2}\right) \Gamma \left(-\frac{t}{2}-2\right) \Gamma \left(k+p-\frac{t}{2}-2\right) \Gamma \left(-k+p+\frac{t}{2}+3\right)}  $$
+ \times \frac{\pi^2  t (t-2) (-2 k+t+2) (-2 k+t+4) \Gamma (p-1) \Gamma (p) \Gamma \left(p-\frac{t}{2}\right)}{128 \sin ^2\left(\frac{\pi  t}{2}\right) \Gamma \left(-\frac{t}{2}-2\right) \Gamma \left(k+p-\frac{t}{2}-2\right) \Gamma \left(-k+p+\frac{t}{2}+3\right)}  $$
  for $I_{5,10}(\xi)$.
+
+**要求**：本题要求**解析解**（闭合形式）。请通过解析方法（如留数定理、超几何级数截断、微分/递推关系等）推导出 $I_{5,10}(\xi)$ 的精确表达式，最终答案应为 $\xi$ 的多项式并给出**精确的有理数系数**（而非浮点拟合值）。数值计算仅可用于中间验证，不能替代解析推导。
