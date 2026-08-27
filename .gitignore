@@ -42,6 +42,10 @@ textbook/merged/chunks.json
 textbook/merged/chunks_translated.json
 textbook/merged/translation_cache/
 
+# 章节总结与习题答案（个人文件，不提交）
+textbook/merged/by_chapter/*/summary.md
+textbook/merged/by_chapter/*/ans_c*.md
+
 # 提取的教材内容（含原文，不提交）
 textbook/merged/examples.json
 textbook/merged/exercises.json
