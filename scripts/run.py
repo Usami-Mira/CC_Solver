@@ -63,6 +63,7 @@ query_rag.py
 __pycache__/
 *.pyc
 *.tmp
+.claude/
 """
 
 
@@ -86,7 +87,12 @@ def read_skills():
 
 
 def ensure_workspace_layout(workspace):
-    """创建 debug/ + tasks/ 子目录，并确保 .gitignore 为最新模板（幂等）。"""
+    """创建 debug/ + tasks/ 子目录，并确保 .gitignore 为最新模板（幂等）。
+
+    同时写入 .claude/settings.json：注册 path_guard PreToolUse hook。
+    sub-agent 的 cwd 是 workspace（独立 git 仓库，即其"项目根"），
+    Claude Code 从那里发现 .claude/ 配置——这是把硬封锁注入会话的唯一挂点。
+    """
     os.makedirs(os.path.join(workspace, DEBUG_DIR), exist_ok=True)
     os.makedirs(os.path.join(workspace, TASKS_DIR), exist_ok=True)
     gitignore_path = os.path.join(workspace, ".gitignore")
@@ -94,6 +100,33 @@ def ensure_workspace_layout(workspace):
         if not os.path.exists(gitignore_path) or open(gitignore_path).read() != GITIGNORE_TEMPLATE:
             with open(gitignore_path, "w") as f:
                 f.write(GITIGNORE_TEMPLATE)
+    except OSError:
+        pass
+
+    # path_guard hook（绝对路径，避免 git rev-parse 解析到 workspace 仓库的陷阱）
+    settings = {
+        "hooks": {
+            "PreToolUse": [
+                {
+                    "matcher": "Read|Write|Edit|NotebookEdit|NotebookRead|Glob|Grep|Bash",
+                    "hooks": [
+                        {
+                            "type": "command",
+                            "command": f"python3 {SCRIPTS_DIR / 'path_guard.py'}",
+                        }
+                    ],
+                }
+            ]
+        }
+    }
+    try:
+        claude_dir = os.path.join(workspace, ".claude")
+        os.makedirs(claude_dir, exist_ok=True)
+        settings_path = os.path.join(claude_dir, "settings.json")
+        content = json.dumps(settings, indent=2) + "\n"
+        if not os.path.exists(settings_path) or open(settings_path).read() != content:
+            with open(settings_path, "w") as f:
+                f.write(content)
     except OSError:
         pass
 
@@ -388,7 +421,6 @@ def main():
             "--output-format", "stream-json",
             "--verbose",
             "--permission-mode", "bypassPermissions",
-            "--bare",
             "--agents", agents_json,
             "--agent", "Orchestrator",
             "--allowed-tools", "Bash,Read,Write",
@@ -399,6 +431,13 @@ def main():
             cmd += ["--resume", resume_sid]
         cmd.append(user_prompt)
         return cmd
+
+    # path_guard 封锁环境变量：WORKSPACE 激活 hook，ROLE 决定允许根
+    # （注意：不再用 --bare——它会连同 hooks 一起跳过，使封锁失效；
+    #   auto-memory 改由 memory_guard 运行期清空记忆目录来阻断）
+    orch_env = os.environ.copy()
+    orch_env["WORKSPACE"] = workspace_abs
+    orch_env["WORKSPACE_ROLE"] = "orchestrator"
 
     fresh_prompt = (
         f"请解决 {workspace_abs} 中的物理题目。\n"
@@ -434,7 +473,7 @@ def main():
             # stderr 直接写日志文件而不用 PIPE，避免管道写满导致子进程阻塞。
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=log_file, text=True,
-                start_new_session=True,
+                start_new_session=True, env=orch_env,
             )
 
             result_event = None
@@ -541,7 +580,8 @@ def main():
     print(f"\n[Orchestrator] done ({elapsed:.0f}s)")
 
     # 记忆防火墙：运行后审计（quarantine 模式会把运行期间的改动捕获并重置）
-    mg_post = memory_guard.post_run(workspace, baseline=mg_pre.get("baseline"))
+    mg_post = memory_guard.post_run(workspace, baselines=mg_pre.get("baselines"),
+                                    baseline=mg_pre.get("baseline"))
     print(f"[memory] {memory_guard.render(mg_post)}")
     try:
         with open(os.path.join(workspace, DEBUG_DIR, ".memory_audit"), "a", encoding="utf-8") as f:

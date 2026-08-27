@@ -1,16 +1,16 @@
 {
   "statusLine": {
     "type": "command",
-    "command": "python3 \"$(git rev-parse --show-toplevel 2>/dev/null || echo /home/usamimira/PHY-LLM/CC_Solver)/scripts/statusline.py\""
+    "command": "python3 /home/usamimira/PHY-LLM/CC_Solver/scripts/statusline.py"
   },
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|NotebookEdit",
+        "matcher": "Read|Write|Edit|NotebookEdit|NotebookRead|Glob|Grep|Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 $(git rev-parse --show-toplevel)/.claude/hooks/check_workspace.py"
+            "command": "python3 /home/usamimira/PHY-LLM/CC_Solver/scripts/path_guard.py"
           }
         ]
       }

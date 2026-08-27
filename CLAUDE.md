@@ -30,6 +30,7 @@ cd textbook && rag_env/bin/python rag_build/query_rag.py "your query"
 ├── scripts/                               ← 脚本目录
 │   ├── run.py                             ← 入口脚本：组装 Orchestrator prompt
 │   ├── spawn.py                           ← 子进程辅助：创建 sub-agent（含逐阶段 Git 快照、--resume 断点续传）
+│   ├── path_guard.py                      ← PreToolUse hook：硬拦截 workspace 外的文件访问
 │   ├── memory_guard.py                    ← 记忆防火墙：用 git 隔离/审计记忆目录
 │   ├── stream_parser.py                   ← 流式输出解析器
 │   ├── statusline.py                      ← Claude Code 状态栏：实时显示 pipeline 进度
@@ -120,7 +121,7 @@ Orchestrator **只调度、不解题、不读题**。为防止上下文膨胀导
 - **Workspace 布局**：`debug/`（状态/日志/汇报）、`tasks/`（所有任务文件）、`scripts/{builder,evaluator,verifier}/<任务名>/`（各角色脚本互相隔离，Evaluator 从 problem.md 独立转录、只审计不运行 Builder 的脚本）
 - 验证任务文件 `tasks/task_{id}.md`（含物理细节）由 **Planner** 撰写；Orchestrator 只写不含物理内容的样板调度指令
 - **Git 快照在代码层自动完成**：`spawn.py` 每次 spawn 前后各提交一次（文件锁互斥，并行安全），Orchestrator 无需手动 commit
-- **记忆防火墙**：所有会话均 `--bare`（禁用 auto-memory 注入）；`scripts/memory_guard.py`（config: `memory_guard`，默认 `quarantine`）在运行前后用 git 快照隔离 `~/.claude/.../memory/`，审计写入 `debug/.memory_audit` 并附入 final_summary.md
+- **记忆防火墙 + 路径封锁**：会话**不再用 `--bare`**（它会把 hooks 一并跳过，使封锁失效）。防"前世记忆"与偷看由两层保证：① `scripts/path_guard.py`（PreToolUse hook，由 `run.py` 写入每个工作区的 `.claude/settings.json`，`WORKSPACE` 环境变量激活）用 exit(2) 硬拦截 workspace 外的一切文件访问（Read/Write/Edit/Glob/Grep/Bash 全覆盖，symlink 按 realpath 解析、禁止嵌套启动 `claude`），审计写入 `debug/.path_guard.log`；② `scripts/memory_guard.py`（config: `memory_guard`，默认 `quarantine`）运行期间**清空记忆目录工作树**（auto-memory 注入读不到任何内容）、运行后捕获期间写入并恢复基线，审计写入 `debug/.memory_audit` 并附入 final_summary.md
 
 ## LaTeX Requirement
 
@@ -138,4 +139,4 @@ All physics formulas must use LaTeX inline math (`$...$`), not Unicode symbols:
 6. **Script paths**: Run scripts from project root, e.g., `python3 scripts/run.py`, not `python3 run.py`
 7. **Evaluator 必须检查代码**：Evaluator 必须先审计 Builder 的 scripts/ 目录（只读，不运行、不采信其输出），然后从 problem.md 独立转录做自己的验证；数值结果与已证明的结构性质矛盾时，优先怀疑自己的脚本
 8. **Workspace 布局**：状态/日志/汇报在 `debug/`，任务文件在 `tasks/`，脚本在 `scripts/<角色>/<任务名>/`；旧版布局的工作区在下次运行时自动迁移（`ensure_workspace_layout` 每次运行都会重写 .gitignore）
-9. **记忆隔离**：所有会话用 `--bare`；`memory_guard`（config.json，默认 `quarantine`）用 git 隔离记忆目录，防止"前世记忆"进入解题过程
+9. **记忆隔离与路径封锁**：不再用 `--bare`（它会禁用 hooks）。防偷看靠 `path_guard.py`（PreToolUse hook，`WORKSPACE` 环境变量激活，exit(2) 硬拦截 + `debug/.path_guard.log` 审计）；记忆隔离靠 `memory_guard` 运行期清空记忆目录、运行后恢复基线

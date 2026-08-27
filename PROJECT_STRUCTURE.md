@@ -6,9 +6,10 @@
 
 | 文件 | 用途 | 修改频率 |
 |------|------|----------|
-| `scripts/run.py` | 入口脚本，启动 Orchestrator（含记忆防火墙前后置、--resume 续跑） | 低 |
+| `scripts/run.py` | 入口脚本，启动 Orchestrator（含记忆防火墙前后置、--resume 续跑、工作区 `.claude` hook 注入） | 低 |
 | `scripts/spawn.py` | 子进程辅助，创建 sub-agent（含逐阶段 Git 快照、--resume 断点续传、进度文件清理） | 低 |
-| `scripts/memory_guard.py` | 记忆防火墙：用 git 快照隔离/审计 `~/.claude` 记忆目录（quarantine/audit/off） | 低 |
+| `scripts/path_guard.py` | PreToolUse hook：`WORKSPACE` 激活，硬拦截工作区外文件访问（审计入 `debug/.path_guard.log`） | 低 |
+| `scripts/memory_guard.py` | 记忆防火墙：运行期清空/运行后恢复 `~/.claude` 记忆目录（quarantine/audit/off） | 低 |
 | `scripts/stream_parser.py` | 流式输出解析器 | 低 |
 | `setup.sh` | 一键安装（RAG 虚拟环境 + 依赖） | 低 |
 | `config.json` | 项目配置（模型、超时、并行数） | 低 |
@@ -28,9 +29,10 @@ CC_Solver/
 ├── PROJECT_STRUCTURE.md      # 本文档
 │
 ├── scripts/                  # 脚本目录
-│   ├── run.py                #   入口：组装 Orchestrator prompt 并启动
+│   ├── run.py                #   入口：组装 Orchestrator prompt 并启动（注入 .claude hook 配置）
 │   ├── spawn.py              #   子进程创建：被 Orchestrator 调用（自动 git 快照 + --resume）
-│   ├── memory_guard.py       #   记忆防火墙：git 隔离/审计记忆目录
+│   ├── path_guard.py         #   PreToolUse hook：硬拦截工作区外文件访问
+│   ├── memory_guard.py       #   记忆防火墙：运行期清空/运行后恢复记忆目录
 │   ├── stream_parser.py      #   流式输出解析器
 │   ├── statusline.py         #   Claude Code 状态栏（显示 pipeline 实时进度 + Agent 进度条）
 │   ├── test_git_integration.py # Git 集成单元测试

@@ -439,7 +439,7 @@ AGENT_PROFILES = {
 1. **命令模式匹配**：`Bash(python3 *)` 只允许以 `python3` 开头的命令，阻止 `rm`、`curl` 等危险操作
 2. **最小权限原则**：Agent 只能执行解题必需的命令，无法安装软件包或访问网络
 3. **Git 写入隔离**：只有 Orchestrator 可以执行 `git commit`，Sub-Agent 只能读取
-4. **工作目录限制**：Agent 被约束在 `{workspace}` 目录内，无法访问其他题目或项目文件
+4. **工作目录限制**：`path_guard` PreToolUse hook 把 Agent 硬锁在 `{workspace}` 内，无法访问其他题目、标准答案、项目文件或 `~/.claude`（详见下文"记忆防火墙"）
 
 **权限覆盖：**
 
@@ -453,10 +453,10 @@ python3 scripts/spawn.py Planner problems/example --tools "Read,Write,Bash"
 
 ### 记忆防火墙
 
-解题会话中的 sub-agent 应当"自己把题做出来"，而不是借用平时积累的记忆。系统从三层防御：
+解题会话中的 sub-agent 应当"自己把题做出来"，而不是借用平时积累的记忆，也不能偷看标准答案或其他题目的解答。系统从三层防御：
 
-1. **注入阻断**：所有 pipeline 会话（Orchestrator 与每个 sub-agent）都以 `--bare` 模式运行，Claude Code 的 auto-memory 注入、CLAUDE.md 自动发现均被关闭。
-2. **git 隔离**：`scripts/memory_guard.py` 在运行前后对记忆目录（`~/.claude/projects/<项目>/memory/`）做 git 快照。`quarantine` 模式（默认）下，运行期间对记忆目录的任何改动会在结束后被重置（所有改动都留在 git 历史中，不会被销毁）；`audit` 模式只记录不重置；`off` 关闭。
+1. **路径硬封锁**：`scripts/path_guard.py` 是 PreToolUse hook，由 `run.py` 写入每个工作区的 `.claude/settings.json`，经 `WORKSPACE` 环境变量激活。它用 `exit(2)` 硬拦截 workspace 之外的一切文件访问——Read/Write/Edit/Glob/Grep/Bash 全覆盖（Bash 命令分词扫描、symlink 按 realpath 解析、禁止嵌套启动 `claude`）。允许根：工作区本身 + `textbook/`（RAG 只读）+ `scripts/`（仅 Orchestrator）。每次拦截都记入 `debug/.path_guard.log`。
+2. **记忆清空（阻断注入）**：会话不再用 `--bare`——它会连同 hooks 一起跳过、使上面的封锁失效。替代方案：`scripts/memory_guard.py` 在运行前把记忆目录（`~/.claude/projects/<slug>/memory/`，含工作区专属 slug）的工作树**清空**（先提交进 git 历史），运行期间 auto-memory 注入读不到任何"前世记忆"；运行后捕获期间写入并恢复基线。`quarantine`（默认）/`audit`/`off` 三档。
 3. **审计留痕**：审计结果写入 `debug/.memory_audit`，并追加到 `final_summary.md` 的"记忆审计"段落，可与答案的推导过程对照核查。
 
 此外，所有 Agent 的 prompt 都明确禁止读写 `~/.claude/` 下的任何文件（记忆、历史会话），也不得在任务文件中提及。

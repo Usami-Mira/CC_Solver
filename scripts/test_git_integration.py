@@ -129,6 +129,27 @@ class TestInitWorkspaceGit(unittest.TestCase):
         self.assertTrue((self.workspace / "debug").is_dir())
         self.assertTrue((self.workspace / "tasks").is_dir())
 
+    def test_git_init_registers_path_guard_hook(self):
+        """init_workspace_git should register the path_guard hook in .claude/settings.json."""
+        self.run_module.init_workspace_git(str(self.workspace))
+        settings_path = self.workspace / ".claude" / "settings.json"
+        self.assertTrue(settings_path.exists())
+        content = settings_path.read_text()
+        self.assertIn("path_guard.py", content)
+        self.assertIn("PreToolUse", content)
+        # matcher 必须覆盖读类工具与 Bash，否则偷看堵不住
+        import re
+        m = re.search(r'"matcher":\s*"([^"]+)"', content)
+        self.assertIsNotNone(m)
+        for tool in ["Read", "Write", "Edit", "Glob", "Grep", "Bash"]:
+            self.assertIn(tool, m.group(1))
+        # .claude/ 被 gitignore：hook 配置不会混入解题快照提交
+        import subprocess
+        r = subprocess.run(
+            ["git", "-C", str(self.workspace), "check-ignore", ".claude/settings.json"],
+            capture_output=True)
+        self.assertEqual(r.returncode, 0)
+
     def test_git_init_makes_initial_commit(self):
         """init_workspace_git should create initial commit."""
         self.run_module.init_workspace_git(str(self.workspace))
@@ -255,6 +276,7 @@ query_rag.py
 __pycache__/
 *.pyc
 *.tmp
+.claude/
 """
 
     def test_debug_files_not_ignored(self):
