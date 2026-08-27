@@ -21,18 +21,37 @@ MAX_CONCURRENT = CONFIG.get("max_concurrent_problems", 3)
 MAX_DISPUTES = CONFIG.get("max_disputes", 2)          # 修订争议协议上限（全局）
 MEMORY_GUARD_MODE = CONFIG.get("memory_guard", "quarantine")
 
-# 读取当前 pipeline 的配置
-PIPELINE_CONFIG = CONFIG.get("configs", {}).get(PIPELINE, {})
-MODEL = PIPELINE_CONFIG.get("model", "sonnet")
-TIMEOUT = PIPELINE_CONFIG.get("timeout_seconds", 600)
-MAX_REVISIONS = PIPELINE_CONFIG.get("max_revisions", 2)
-AGENT_MODELS = PIPELINE_CONFIG.get("agent_models", {})
+# 当前 pipeline 的配置（导入时按 config 默认值初始化，--pipeline 覆盖时经
+# apply_pipeline_config 重新派生；assemble/进度显示/超时均读这些全局量）
+PIPELINE_CONFIG = {}
+MODEL = "sonnet"
+TIMEOUT = 600
+MAX_REVISIONS = 2
+AGENT_MODELS = {}
+MAX_ITERATIONS = 10
+MAX_ROUNDS = 3
+NUM_PLANNERS = 3
+EPHEMERAL_TIMEOUT = 300
 
-# Pipeline-specific 配置
-MAX_ITERATIONS = PIPELINE_CONFIG.get("max_iterations", 10)
-MAX_ROUNDS = PIPELINE_CONFIG.get("max_rounds", 3)
-NUM_PLANNERS = PIPELINE_CONFIG.get("num_planners", 3)
-EPHEMERAL_TIMEOUT = PIPELINE_CONFIG.get("ephemeral_timeout", PIPELINE_CONFIG.get("calculation_timeout", 300))
+
+def apply_pipeline_config(name):
+    """按 pipeline 名设置模块级配置变量。"""
+    global PIPELINE, PIPELINE_CONFIG, MODEL, TIMEOUT, MAX_REVISIONS, AGENT_MODELS
+    global MAX_ITERATIONS, MAX_ROUNDS, NUM_PLANNERS, EPHEMERAL_TIMEOUT
+    PIPELINE = name
+    PIPELINE_CONFIG = CONFIG.get("configs", {}).get(name, {})
+    MODEL = PIPELINE_CONFIG.get("model", "sonnet")
+    TIMEOUT = PIPELINE_CONFIG.get("timeout_seconds", 600)
+    MAX_REVISIONS = PIPELINE_CONFIG.get("max_revisions", 2)
+    AGENT_MODELS = PIPELINE_CONFIG.get("agent_models", {})
+    MAX_ITERATIONS = PIPELINE_CONFIG.get("max_iterations", 10)
+    MAX_ROUNDS = PIPELINE_CONFIG.get("max_rounds", 3)
+    NUM_PLANNERS = PIPELINE_CONFIG.get("num_planners", 3)
+    EPHEMERAL_TIMEOUT = PIPELINE_CONFIG.get("ephemeral_timeout",
+                                            PIPELINE_CONFIG.get("calculation_timeout", 300))
+
+
+apply_pipeline_config(PIPELINE)
 
 DEBUG_DIR = "debug"
 TASKS_DIR = "tasks"
@@ -331,7 +350,7 @@ def main():
 
     # Override pipeline if specified on command line
     if args.pipeline:
-        PIPELINE = args.pipeline
+        apply_pipeline_config(args.pipeline)
 
     # Copy RAG query script into workspace so agents can run it locally
     query_script = ROOT / "textbook" / "rag_build" / "query_rag.py"
