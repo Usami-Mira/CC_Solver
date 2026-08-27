@@ -1,6 +1,8 @@
 {
   "pipeline": "adaptive",
   "max_concurrent_problems": 3,
+  "max_disputes": 2,
+  "memory_guard": "quarantine",
 
   "configs": {
     "standard": {
@@ -63,6 +65,7 @@
       "ephemeral_timeout": 600,
       "agent_models": {
         "Planner": "qwen3.6-plus",
+        "Verifier": "qwen3.6-plus",
         "Builder": "qwen3.6-plus",
         "Evaluator": "qwen3.6-plus"
       }
@@ -70,12 +73,13 @@
 
     "adaptive": {
       "model": "qwen3.6-plus",
-      "timeout_seconds": 3600,
+      "timeout_seconds": 86400,
       "max_iterations": 25,
       "max_revisions": 8,
       "calculation_timeout": 600,
       "agent_models": {
         "Planner": "qwen3.6-plus",
+        "Verifier": "qwen3.6-plus",
         "Builder": "qwen3.6-plus",
         "Evaluator": "qwen3.6-plus"
       }

@@ -68,7 +68,7 @@
 
 ### 阶段 1：专家并行独立分析
 
-写三个样板任务（仅角色与输出文件名不同），并行 spawn（Bash `&` + `wait`）：
+写三个样板任务到 `{workspace}/tasks/`（仅角色与输出文件名不同），并行 spawn（Bash `&` + `wait`；spawn.py 的自动快照用文件锁互斥，并行安全）：
 
 `task_theorist.md`：
 
@@ -99,7 +99,7 @@ wait
 将批评写入 `{workspace}/critic_round_{n}.md`。
 ```
 
-**收敛判断**：读 `.Critic.result` 的 SUMMARY（含 `Critical: X, Major: Y` 计数）。若 Critical 为 0，跳过回应与后续轮次，直接进入阶段 3；否则继续。
+**收敛判断**：读 `debug/.Critic.result` 的 SUMMARY（含 `Critical: X, Major: Y` 计数）。若 Critical 为 0，跳过回应与后续轮次，直接进入阶段 3；否则继续。
 
 专家回应（三个角色可并行），样板任务以 Theorist 为例：
 
@@ -123,7 +123,7 @@ wait
 将第 {n} 轮辩论记录写入 `{workspace}/debate_summary_round_{n}.md`。
 ```
 
-Secretary 的 `.result` 中 `OUTPUT` 应为 `debate_summary_round_{n}.md`；确认后进入下一轮或阶段 3。
+Secretary 的 `debug/.Secretary.result` 中 `OUTPUT` 应为 `debate_summary_round_{n}.md`；确认后进入下一轮或阶段 3。
 
 ### 阶段 3：Secretary 撰写最终 Plan
 
@@ -136,13 +136,13 @@ Secretary 的 `.result` 中 `OUTPUT` 应为 `debate_summary_round_{n}.md`；确�
 综合共识，将最终解题计划写入 `{workspace}/final_plan.md`。
 ```
 
-Secretary 的 `.result` 中 `OUTPUT` 为 `final_plan.md` → 进入阶段 4。
+Secretary 的 `debug/.Secretary.result` 中 `OUTPUT` 为 `final_plan.md` → 进入阶段 4。
 
 ### 阶段 4 / 5：Builder / Evaluator
 
-样板任务与路由同 Standard Pipeline（task_builder.md 读 problem.md + final_plan.md；task_evaluator.md；PASS/REVISE 循环，最多 {max_revisions} 次）。
+样板任务与路由同 Standard Pipeline（task_builder.md 读 problem.md + final_plan.md；task_evaluator.md；PASS/REVISE 循环；**REVISE 先走修订争议协议**，见通用编排器，修订最多 {max_revisions} 次）。
 
-**通用路由：** 任一角色 `BLOCKED` → 重试一次，仍失败记入 `.errors.log` 并按阶段跳过或终止。
+**通用路由：** 任一角色 `BLOCKED` → 重试一次，仍失败记入 `debug/.errors.log` 并按阶段跳过或终止。
 
 ## 状态管理
 
@@ -159,6 +159,7 @@ debate_round_2
 secretary_final_plan
 builder
 evaluator
+dispute_rebuttal_1（仅 REVISE 时）
 builder_revise_1
 evaluator_revise_1
 done

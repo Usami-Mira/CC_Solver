@@ -42,7 +42,7 @@ Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代�
 
 ## Orchestrator 执行协议
 
-第 $n$ 轮循环（n 从 1 开始，最多 {max_iterations} 轮）。每轮依次写三个样板任务文件：
+第 $n$ 轮循环（n 从 1 开始，最多 {max_iterations} 轮）。每轮依次写三个样板任务文件到 `{workspace}/tasks/`：
 
 `task_explorer_{n}.md`：
 
@@ -59,7 +59,7 @@ Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代�
 # Task builder_{n}
 
 请阅读 `{workspace}/problem.md` 和 `{workspace}/hypothesis_{n}.md`，验证这个假设。
-将验证过程与结果写入 `{workspace}/experiment_{n}.md`，计算脚本放在 `{workspace}/scripts/`。
+将验证过程与结果写入 `{workspace}/experiment_{n}.md`，计算脚本放在 `{workspace}/scripts/builder/iter_{n}/`。
 ```
 
 `task_evaluator_{n}.md`：
@@ -67,27 +67,29 @@ Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代�
 ```markdown
 # Task evaluator_{n}
 
-请阅读 `{workspace}/problem.md`、`{workspace}/hypothesis_{n}.md` 和 `{workspace}/experiment_{n}.md`，评估本轮进展。
+请阅读 `{workspace}/problem.md`、`{workspace}/hypothesis_{n}.md` 和 `{workspace}/experiment_{n}.md`，评估本轮进展
+（审计 `{workspace}/scripts/builder/` 下的代码——只读，不运行；你自己的验证脚本放 `{workspace}/scripts/evaluator/iter_{n}/`，从 problem.md 独立转录）。
 1. 将评估写入 `{workspace}/assessment_{n}.md`，**第一行必须是 PASS、PARTIAL 或 DEAD_END 之一**
 2. 将本轮结论追加到 `{workspace}/exploration_history.md`（假设要点 + 裁决 + 经验教训，不超过 5 行）
 ```
 
-**路由（只依据 `.result` 的 HANDOFF，`VERDICT` 与 `assessment_{n}.md` 第一行一致）：**
+**路由（只依据 `debug/.<Role>.result` 的 HANDOFF，`VERDICT` 与 `assessment_{n}.md` 第一行一致）：**
 
-- Explorer `BLOCKED` → 重试一次；仍失败 → 记入 `.errors.log`，终止并写 final_summary.md
+- Explorer `BLOCKED` → 重试一次；仍失败 → 记入 `debug/.errors.log`，终止并写 final_summary.md
 - Builder `BLOCKED` → 本轮按 DEAD_END 处理，直接进入下一轮
 - Evaluator `VERDICT: PASS` → 再 spawn 一次 Builder，样板任务：「请基于 `{workspace}/hypothesis_{n}.md` 和 `{workspace}/experiment_{n}.md`，整理出完整解答，写入 `{workspace}/final_solution.md`」→ 写 final_summary.md，结束
-- `PARTIAL` / `DEAD_END` → 更新 `.state`，git commit，进入第 n+1 轮；达到 {max_iterations} 轮仍未 PASS → 写 final_summary.md（注明未收敛及最后一轮裁决）结束
+- `PARTIAL` / `DEAD_END` → 更新 `debug/.state`，进入第 n+1 轮；达到 {max_iterations} 轮仍未 PASS → 写 final_summary.md（注明未收敛及最后一轮裁决）结束
 
 ## 状态管理
 
-```json
-{
-  "stage": "iteration",
-  "current_iteration": 2,
-  "max_iterations": 5,
-  "next": "explorer"
-}
+写入 `{workspace}/debug/.state`（key: value 格式）：
+
+```
+pipeline: iterative
+stage: iteration
+iteration: 2
+last_verdict: PARTIAL
+next: Explorer task_explorer_3.md
 ```
 
 ## 参数

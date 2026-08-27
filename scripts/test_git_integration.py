@@ -27,7 +27,8 @@ class TestAgentProfiles(unittest.TestCase):
         """Load spawn.py module."""
         # Import spawn module to access AGENT_PROFILES
         import importlib.util
-        spec = importlib.util.spec_from_file_location("spawn", "spawn.py")
+        spec = importlib.util.spec_from_file_location(
+            "spawn", str(Path(__file__).parent / "spawn.py"))
         self.spawn = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.spawn)
 
@@ -92,7 +93,8 @@ class TestInitWorkspaceGit(unittest.TestCase):
 
         # Import run module
         import importlib.util
-        spec = importlib.util.spec_from_file_location("run", "run.py")
+        spec = importlib.util.spec_from_file_location(
+            "run", str(Path(__file__).parent / "run.py"))
         self.run_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.run_module)
 
@@ -112,10 +114,20 @@ class TestInitWorkspaceGit(unittest.TestCase):
         self.assertTrue(gitignore.exists())
 
         content = gitignore.read_text()
-        self.assertIn(".*.log", content)
-        self.assertIn(".*.result", content)
-        self.assertIn(".*.metrics", content)
-        self.assertIn(".state", content)
+        # 新布局：运行时记录移入 debug/ 并提交入库（审计用），只忽略缓存与临时文件
+        rules = [ln for ln in content.splitlines() if ln.strip() and not ln.startswith("#")]
+        self.assertIn("query_rag.py", rules)
+        self.assertIn("__pycache__/", rules)
+        self.assertIn("*.pyc", rules)
+        self.assertIn("*.tmp", rules)
+        self.assertNotIn(".*.log", rules)
+        self.assertNotIn(".state", rules)
+
+    def test_git_init_creates_layout(self):
+        """init_workspace_git should create debug/ and tasks/ subdirectories."""
+        self.run_module.init_workspace_git(str(self.workspace))
+        self.assertTrue((self.workspace / "debug").is_dir())
+        self.assertTrue((self.workspace / "tasks").is_dir())
 
     def test_git_init_makes_initial_commit(self):
         """init_workspace_git should create initial commit."""
@@ -199,7 +211,8 @@ class TestSpawnCommandLine(unittest.TestCase):
     def setUp(self):
         """Import spawn module."""
         import importlib.util
-        spec = importlib.util.spec_from_file_location("spawn", "spawn.py")
+        spec = importlib.util.spec_from_file_location(
+            "spawn", str(Path(__file__).parent / "spawn.py"))
         self.spawn = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.spawn)
 
@@ -233,40 +246,31 @@ class TestSpawnCommandLine(unittest.TestCase):
 
 
 class TestGitignoreContent(unittest.TestCase):
-    """Test .gitignore content."""
+    """Test .gitignore content（新布局：debug/ 提交入库审计，只忽略缓存）."""
 
-    def test_ignores_agent_artifacts(self):
-        """Should ignore agent log, result, and metrics files."""
-        gitignore_content = """\
-.*.log
-.*.result
-.*.metrics
-.state
+    GITIGNORE = """\
+# 运行时记录（.log/.result/.metrics/.state）已移入 debug/ 并提交入库（审计用）。
+# 这里只忽略缓存与临时文件。
 query_rag.py
 __pycache__/
 *.pyc
 *.tmp
 """
-        self.assertIn(".*.log", gitignore_content)
-        self.assertIn(".*.result", gitignore_content)
-        self.assertIn(".*.metrics", gitignore_content)
-        self.assertIn(".state", gitignore_content)
+
+    def test_debug_files_not_ignored(self):
+        """运行时记录移入 debug/ 后提交入库审计，不应被 gitignore 排除。"""
+        rules = [ln for ln in self.GITIGNORE.splitlines() if ln.strip() and not ln.startswith("#")]
+        self.assertNotIn(".*.log", rules)
+        self.assertNotIn(".*.result", rules)
+        self.assertNotIn(".*.metrics", rules)
+        self.assertNotIn(".state", rules)
 
     def test_ignores_temporary_files(self):
         """Should ignore temporary and cache files."""
-        gitignore_content = """\
-.*.log
-.*.result
-.*.metrics
-.state
-query_rag.py
-__pycache__/
-*.pyc
-*.tmp
-"""
-        self.assertIn("__pycache__/", gitignore_content)
-        self.assertIn("*.pyc", gitignore_content)
-        self.assertIn("*.tmp", gitignore_content)
+        self.assertIn("query_rag.py", self.GITIGNORE)
+        self.assertIn("__pycache__/", self.GITIGNORE)
+        self.assertIn("*.pyc", self.GITIGNORE)
+        self.assertIn("*.tmp", self.GITIGNORE)
 
 
 if __name__ == "__main__":

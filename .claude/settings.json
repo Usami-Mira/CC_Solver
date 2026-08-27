@@ -1,4 +1,8 @@
 {
+  "statusLine": {
+    "type": "command",
+    "command": "python3 \"$(git rev-parse --show-toplevel 2>/dev/null || echo /home/usamimira/PHY-LLM/CC_Solver)/scripts/statusline.py\""
+  },
   "hooks": {
     "PreToolUse": [
       {

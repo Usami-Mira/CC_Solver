@@ -6,8 +6,9 @@
 
 | 文件 | 用途 | 修改频率 |
 |------|------|----------|
-| `scripts/run.py` | 入口脚本，启动 Orchestrator | 低 |
-| `scripts/spawn.py` | 子进程辅助，创建 Planner/Builder/Evaluator | 低 |
+| `scripts/run.py` | 入口脚本，启动 Orchestrator（含记忆防火墙前后置、--resume 续跑） | 低 |
+| `scripts/spawn.py` | 子进程辅助，创建 sub-agent（含逐阶段 Git 快照、--resume 断点续传、进度文件清理） | 低 |
+| `scripts/memory_guard.py` | 记忆防火墙：用 git 快照隔离/审计 `~/.claude` 记忆目录（quarantine/audit/off） | 低 |
 | `scripts/stream_parser.py` | 流式输出解析器 | 低 |
 | `setup.sh` | 一键安装（RAG 虚拟环境 + 依赖） | 低 |
 | `config.json` | 项目配置（模型、超时、并行数） | 低 |
@@ -28,8 +29,10 @@ CC_Solver/
 │
 ├── scripts/                  # 脚本目录
 │   ├── run.py                #   入口：组装 Orchestrator prompt 并启动
-│   ├── spawn.py              #   子进程创建：被 Orchestrator 调用
+│   ├── spawn.py              #   子进程创建：被 Orchestrator 调用（自动 git 快照 + --resume）
+│   ├── memory_guard.py       #   记忆防火墙：git 隔离/审计记忆目录
 │   ├── stream_parser.py      #   流式输出解析器
+│   ├── statusline.py         #   Claude Code 状态栏（显示 pipeline 实时进度 + Agent 进度条）
 │   ├── test_git_integration.py # Git 集成单元测试
 │   └── test_hang_kill.py     #   进程挂起防护回归测试
 │
@@ -39,6 +42,7 @@ CC_Solver/
 │   │   ├── planner.md
 │   │   ├── builder.md
 │   │   ├── evaluator.md
+│   │   ├── verifier.md
 │   │   ├── meta_planner.md
 │   │   ├── explorer.md
 │   │   ├── secretary.md
@@ -65,10 +69,21 @@ CC_Solver/
 │           ├── plan.md            # Planner 输出
 │           ├── solution.md        # Builder 输出
 │           ├── review.md          # Evaluator 输出
-│           ├── final_summary.md   # 最终汇总
-│           ├── .state             # 断点状态
-│           ├── .git/              # Git 仓库（自动创建）
-│           └── .*.result/metrics  # 内部缓存
+│           ├── final_summary.md   # 最终汇总（含记忆审计段落）
+│           ├── tasks/             # 任务文件（task_*.md、rebuttal/rejoin 任务）
+│           ├── scripts/           # 按角色隔离的脚本：
+│           │   ├── builder/<任务名>/    #   Builder 的计算脚本
+│           │   ├── evaluator/<任务名>/  #   Evaluator 的独立验证脚本（从 problem.md 重新转录）
+│           │   └── verifier/            #   Verifier 的抽查脚本
+│           ├── debug/             # 内部状态目录：
+│           │   ├── .state         #   断点状态（key: value）
+│           │   ├── .{role}.result #   HANDOFF 汇报（≤6 行）
+│           │   ├── .{role}.metrics#   调用指标
+│           │   ├── .{role}.session#   Claude 会话 ID（--resume 用）
+│           │   ├── .{role}.progress#  进度条（k/N: 摘要）
+│           │   ├── .orchestrator_session / .orchestrator.log / .errors.log
+│           │   └── .memory_audit  #   记忆防火墙审计日志
+│           └── .git/              # Git 仓库（自动创建）
 │
 └── textbook/                 # 教科书 RAG 知识库
     ├── rag_build/            #   RAG 构建脚本
@@ -188,7 +203,9 @@ git diff HEAD~1 solution.md
 {
   "pipeline": "standard",              // 当前使用的 pipeline
   "max_concurrent_problems": 3,        // 最大并行题目数
-  
+  "max_disputes": 2,                   // 修订争议协议最大轮数（达上限强制修订）
+  "memory_guard": "quarantine",        // 记忆防火墙：quarantine / audit / off
+
   "configs": {                         // 各 Pipeline 的独立配置
     "standard": {
       "model": "qwen3.6-plus",         // 使用的模型名
@@ -209,6 +226,7 @@ git diff HEAD~1 solution.md
       "ephemeral_timeout": 300,        // 临时 Builder/Evaluator 超时
       "agent_models": {
         "Planner": "qwen3.6-plus",
+        "Verifier": "qwen3.6-plus",
         "Builder": "qwen3.6-plus",
         "Evaluator": "qwen3.6-plus"
       }
@@ -251,39 +269,58 @@ review.md       →     Orchestrator     →     判断 PASS/REVISE
 
 ## 断点续传机制
 
-每道题的 `.state` 文件记录下一个应执行的 Agent：
+断点续传有两层：
+
+**状态层** — `debug/.state`（key: value 格式）记录 pipeline、stage、迭代轮次、最新裁决、下一个 Agent 等：
 
 ```
-无 .state 文件  → 从 planner 开始
-.state = planner → 运行 Planner
-.state = builder → 运行 Builder
-.state = evaluator → 运行 Evaluator
-.state = done   → 跳过（已完成）
+pipeline: adaptive
+stage: iteration
+iteration: 3
+last_verdict: PASS
+next: Planner task_planner_4.md
 ```
 
-Agent 成功后才更新 `.state`，失败不更新，确保可随时中断并安全恢复。
+Orchestrator 每完成一个阶段更新一次，续跑时先读它恢复决策上下文（auto-compact 后同样可恢复）。
+
+**会话层** — `debug/.orchestrator_session` 与 `debug/.{role}.session` 存 Claude 会话 ID。超时/中断后，`run.py` / `spawn.py` 自动尝试 `claude --resume <会话ID>` 续接原会话（附固定的续传提示：先盘点已完成部分，再从中断处继续）；续接失败或再次超时才退回开新会话。`--resume` 只用于超时/中断，不用于 BLOCKED/FAIL 后的重试。
 
 ## Git 提交约定
 
-Orchestrator 在以下节点自动提交：
+`spawn.py` 在每次 spawn sub-agent 前后各做一次 git 快照（`fcntl.flock` 文件锁互斥，多题并行安全），提交消息前缀自动解析自 `debug/.state` 的 `pipeline:` 行：
 
-| 时机 | 提交消息 |
+| 时机 | 提交消息示例 |
 |------|----------|
-| 初始化后 | `init: workspace setup with problem files` |
-| 预创建文件后 | `init: create output files` |
-| Planner 完成后 | `plan: v1 complete` |
-| Builder 完成后 | `solution: v1 complete` 或 `solution: v2 revised` |
-| Evaluator 完成后 | `review: v1 complete` 或 `review: v2 revised` |
-| 写入汇总后 | `final: summary` |
+| sub-agent 启动前 | `standard: spawn Builder (task_builder)` |
+| sub-agent 完成后 | `standard: Builder done (task_builder)` |
+| sub-agent 失败后 | `standard: Builder failed (task_builder)` |
+| run.py 收尾 | `standard: run complete (summary + memory audit)` |
+
+快照实现在代码层，不依赖 Orchestrator 记得提交；`debug/` 同样纳入版本管理。
+
+## 修订争议协议
+
+Evaluator 给出 REVISE 后，不直接让 Builder 改，而是先走争议协议（防止正确的解答被错误审查意见带偏）：
+
+```
+REVISE → task_rebuttal_{n}: Builder 逐条 ACCEPT/REBUT（禁止改 solution.md）
+       → REBUTTED=0 → 直接修订
+       → REBUTTED>0 → task_rejoin_{n}: Evaluator 复审
+           （MAINTAIN 必须附新证据：在 scripts/evaluator/rejoin_{n}/ 重新独立验证）
+       → CONSENSUS → 修订
+       → DISPUTED 且未达 max_disputes → n+=1 再来一轮
+       → 达上限 → 强制修订，争议点单独标注，下次评估必须用全新证据
+```
 
 ## 故障排查
 
 ### 问题：Agent 卡住或超时
 
 **检查**：
-1. `cat problems/<exam>/<n>/.<role>.log` — 查看 Agent 日志
-2. `cat problems/<exam>/<n>/.state` — 查看当前阶段
-3. `config.json` 中的 `timeout_seconds` — 是否太短
+1. `cat problems/<exam>/<n>/debug/.{role}.log` — 查看 Agent 日志
+2. `cat problems/<exam>/<n>/debug/.state` — 查看当前阶段
+3. `cat problems/<exam>/<n>/debug/.errors.log` — 查看运行期错误
+4. `config.json` 中的 `timeout_seconds` — 是否太短
 
 ### 问题：Git 提交失败
 

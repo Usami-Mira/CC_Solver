@@ -10,10 +10,10 @@
 | **Parallel** | 3×Planner 并行 → Meta-Planner 选优 → Builder → Evaluator | 多解法探索，需要最优方案 |
 | **Iterative** | Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代 | 开放性问题，需要逐步逼近 |
 | **Debate** | 3×专家（理论/计算/实验）辩论 → Secretary 综合 → Builder → Evaluator | 复杂问题，需要多角度分析 |
-| **Tree Search** | Planner 决策 → Ephemeral Builder-Evaluator 验证 → Final Builder → Evaluator | 探索性问题，需要试错和回溯 |
-| **Adaptive** | Planner 自适应决策 → Ephemeral Builder-Evaluator 验证 → 动态调整 → Final Builder → Evaluator | 需要逐步验证和策略调整的问题 |
+| **Tree Search** | Planner 决策 → Ephemeral Builder-Evaluator 验证 → Verifier 审查方案 → Final Builder → Evaluator | 探索性问题，需要试错和回溯 |
+| **Adaptive** | Planner 自适应决策 → Ephemeral Builder-Evaluator 验证 → 动态调整 → Verifier 审查方案 → Final Builder → Evaluator | 需要逐步验证和策略调整的问题 |
 
-每道题支持断点续传，中断后可自动从上次进度继续。系统使用 Git 自动追踪解题过程的完整演变，支持查看每个阶段的变更历史和版本对比。
+每道题支持断点续传：状态文件 + `claude --resume` 会话续接双重保障，中断后可自动从上次进度继续。系统使用 Git 自动追踪解题过程的完整演变（逐阶段快照在代码层自动完成），支持查看每个阶段的变更历史和版本对比。
 
 ## 环境安装
 
@@ -95,6 +95,8 @@ problems/
 {
   "pipeline": "standard",
   "max_concurrent_problems": 3,
+  "max_disputes": 2,
+  "memory_guard": "quarantine",
 
   "configs": {
     "standard": {
@@ -130,6 +132,8 @@ problems/
 |------|------|
 | `pipeline` | 当前使用的解题策略：`standard` / `parallel` / `iterative` / `debate` / `tree_search` / `adaptive` |
 | `max_concurrent_problems` | 多题场景下同时并行处理的最大题目数，默认 3 |
+| `max_disputes` | 修订争议协议最大轮数：REVISE 时 Builder 回击 → Evaluator 复审，达上限后强制修订（争议点单独标注），默认 2 |
+| `memory_guard` | 记忆防火墙模式：`quarantine`（运行后 git 快照隔离，重置本次运行对记忆目录的改动）/ `audit`（只记录不重置）/ `off` |
 
 **各 Pipeline 配置字段（在 `configs` 下）：**
 
@@ -231,17 +235,22 @@ git log -p solution.md
 git diff HEAD~2 solution.md
 ```
 
-以下以 `.` 开头的文件是系统内部使用的状态和缓存文件，一般不需要手动查看：
+`debug/` 目录存放系统内部使用的状态和缓存文件，一般不需要手动查看（也纳入 Git 版本管理，可事后审计）：
 
 | 文件 | 说明 |
 |------|------|
-| `.state` | 断点续传状态文件，记录下一个应执行的 Agent |
-| `.{role}.result` | 对应 Agent 的原始输出 |
-| `.{role}.metrics` | 对应 Agent 的调用指标（用时、Token 消耗等） |
+| `debug/.state` | 断点续传状态文件（key: value），记录当前阶段、轮次、裁决与下一个 Agent |
+| `debug/.{role}.result` | 对应 Agent 的 HANDOFF 汇报（≤6 行） |
+| `debug/.{role}.metrics` | 对应 Agent 的调用指标（用时、Token 消耗等） |
+| `debug/.{role}.session` | 对应 Agent 的 Claude 会话 ID（用于 `--resume` 断点续传） |
+| `debug/.{role}.progress` | 对应 Agent 的进度条（`k/N: 摘要`，单行） |
+| `debug/.orchestrator.log` | Orchestrator 流式日志 |
+| `debug/.errors.log` | 运行期错误记录 |
+| `debug/.memory_audit` | 记忆防火墙审计日志（运行前后记忆目录的 git 快照对比） |
 
 ## 注意事项
 
-- **不要手动删除 `.state` 文件**：如果需要重做某道题，删除该题子文件夹下所有生成的文件（保留 `problem.md`）即可重置。
+- **不要手动删除 `debug/` 下的文件**：如果需要重做某道题，删除该题子文件夹下除 `problem.md` 之外的所有生成文件和目录（含 `debug/`、`tasks/`、`scripts/`）即可重置。
 - **超时设置**：复杂题目可能耗时较长，`timeout_seconds` 建议设大一些。如果中途中断，下次运行会自动从断点续传。
 - **模型选择**：推荐使用推理能力较强的模型，弱模型在物理推导上可能出错。
 - **题目格式**：`problem.md` 建议使用纯文本或 Markdown，包含题目描述、已知条件和待求量。如果题目含图片，可在 Markdown 中用文字描述图片内容。
@@ -256,8 +265,10 @@ git diff HEAD~2 solution.md
 ├── PROJECT_STRUCTURE.md     # 详细项目结构和开发指南
 ├── scripts/                 # 脚本目录
 │   ├── run.py               # 入口脚本：组装 Orchestrator prompt 并启动
-│   ├── spawn.py             # 子进程辅助脚本：创建 Planner/Builder/Evaluator，含权限配置
+│   ├── spawn.py             # 子进程辅助脚本：创建 sub-agent，含权限配置、逐阶段 Git 快照、--resume 续传
+│   ├── memory_guard.py      # 记忆防火墙：用 git 快照隔离/审计 ~/.claude 记忆目录
 │   ├── stream_parser.py     # 流式输出解析器
+│   ├── statusline.py        # Claude Code 状态栏：实时显示 pipeline 进度
 │   ├── test_git_integration.py  # Git 集成单元测试
 │   └── test_hang_kill.py    # 进程挂起防护回归测试
 ├── prompts/                 # Agent 定义和 Skill 定义
@@ -266,6 +277,7 @@ git diff HEAD~2 solution.md
 │   │   ├── planner.md
 │   │   ├── builder.md
 │   │   ├── evaluator.md
+│   │   ├── verifier.md
 │   │   ├── meta_planner.md
 │   │   ├── explorer.md
 │   │   ├── secretary.md
@@ -291,10 +303,11 @@ git diff HEAD~2 solution.md
 │       │   ├── plan.md            # Planner 输出
 │       │   ├── solution.md        # Builder 输出
 │       │   ├── review.md          # Evaluator 输出
-│       │   ├── final_summary.md   # 最终汇总
-│       │   ├── .state             # 断点状态
-│       │   ├── .git/              # Git 仓库（自动创建，追踪解题过程）
-│       │   └── .*.result/metrics  # 内部缓存
+│       │   ├── final_summary.md   # 最终汇总（含记忆审计段落）
+│       │   ├── tasks/             # 任务文件（task_*.md、rebuttal/rejoin 任务）
+│       │   ├── scripts/           # 按角色隔离的脚本：builder/、evaluator/、verifier/（每个任务再分子目录）
+│       │   ├── debug/             # 内部状态目录（.state、.*.result、.*.session、日志、进度）
+│       │   └── .git/              # Git 仓库（自动创建，追踪解题过程）
 │       └── ...
 ├── textbook/                # 教科书 RAG 知识库（详见下方）
 │   ├── batch_parse.py               # 分卷合并
@@ -336,14 +349,25 @@ Orchestrator
   ├── spawn Evaluator → review.md
   └── 检查 review.md
         PASS  → final_summary.md
-        REVISE → 重新 spawn Builder（附带审查意见），最多 2 次
+        REVISE → 先走修订争议协议（Builder 逐条回击 → 必要时 Evaluator 复审，
+                 达成共识或达 max_disputes 上限），然后才重新 spawn Builder 修订，
+                 最多 max_revisions 次
 ```
 
 每个 Agent 是一个独立的 Claude Code 进程，通过 `spawn.py` 封装创建。Agent 之间不直接通信，而是通过文件系统中的 Markdown 文件传递结果。
 
 ### 断点续传
 
-每道题目录维护一个 `.state` 文件，内容为一个单词：`planner` / `builder` / `evaluator` / `done`，表示下一个应执行的 Agent。启动时读取该文件，从记录的阶段继续执行。Agent 成功后才更新状态，失败不更新，因此可以随时中断并安全恢复。
+断点续传有两层：
+
+1. **状态层**：`debug/.state`（key: value 格式）记录当前 pipeline 阶段、迭代轮次、最新裁决、下一个 Agent 等。Orchestrator 每完成一个阶段更新一次，续跑时先读它恢复决策上下文。
+2. **会话层**：Orchestrator 和每个 sub-agent 的 Claude 会话 ID 分别存于 `debug/.orchestrator_session` 和 `debug/.{role}.session`。超时/中断后，下次运行自动用 `claude --resume <会话ID>` 续接原会话（模型从中断处继续，而不是从头再来）；若续接失败或再次超时，才退回开新会话并依据 `.state` 继续。
+
+`debug/.state` 中 `stage` 已为完成态、或 `final_summary.md` 已存在时视为已完成，不再续跑。
+
+### Agent 进度条
+
+Builder 执行最终推导时，会按 plan / final_plan 的步骤编号逐步覆写 `debug/.builder.progress`（单行：`k/N: 本步摘要`）。`run.py` 的后台监视器与 `statusline.py`（Claude Code 状态栏）实时读取并渲染，长推导也能看到进行到了哪一步；其他角色的进度文件同理。
 
 ### Agent 定义
 
@@ -353,42 +377,30 @@ Orchestrator
 
 每道题的工作目录在启动时自动初始化为 Git 仓库，用于追踪解题过程的完整演变。
 
-**提交时机：**
+**提交时机（代码层自动完成，不依赖模型自觉）：**
 
-Orchestrator 在以下节点自动提交：
+`spawn.py` 在每次 spawn sub-agent 前后各做一次 git 快照（文件锁互斥，多题并行安全），提交消息前缀 `<pipeline>:` 自动解析自 `debug/.state`：
 
-| 时机 | 提交消息 |
+| 时机 | 提交消息示例 |
 |------|----------|
-| 初始化后 | `init: workspace setup with problem files` |
-| 预创建空文件后 | `init: create output files` |
-| Planner 完成后 | `plan: v1 complete` |
-| Builder 完成后 | `solution: v1 complete` 或 `solution: v2 revised` |
-| Evaluator 完成后 | `review: v1 complete` 或 `review: v2 revised` |
-| 写入汇总后 | `final: summary` |
+| sub-agent 启动前 | `standard: spawn Builder (task_builder)` |
+| sub-agent 完成后 | `standard: Builder done (task_builder)` |
+| sub-agent 失败后 | `standard: Builder failed (task_builder)` |
+| run.py 收尾 | `standard: run complete (summary + memory audit)` |
 
-**典型 Git 历史（一次通过）：**
+快照实现在代码层（而非依赖 Orchestrator 在 prompt 里记得 commit），因此即使模型忘记也不会漏提交。`debug/` 目录同样纳入版本管理，`.state`、`.result`、日志等可事后审计。
 
-```bash
-$ git log --oneline
-a1b2c3d final: summary
-e4f5g6h review: v1 complete
-i7j8k9l solution: v1 complete
-m0n1o2p plan: v1 complete
-q3r4s5t init: create output files
-u6v7w8x init: workspace setup with problem files
-```
-
-**典型 Git 历史（经历 REVISE）：**
+**典型 Git 历史：**
 
 ```bash
 $ git log --oneline
-a1b2c3d final: summary
-e4f5g6h review: v2 revised
-i7j8k9l solution: v2 revised
-m0n1o2p review: v1 complete
-q3r4s5t solution: v1 complete
-t9u0v1w plan: v1 complete
-x2y3z4a init: create output files
+c9d8e7f standard: run complete (summary + memory audit)
+a1b2c3d standard: Evaluator done (task_evaluator)
+e4f5g6h standard: spawn Evaluator (task_evaluator)
+i7j8k9l standard: Builder done (task_builder)
+m0n1o2p standard: spawn Builder (task_builder)
+q3r4s5t standard: Planner done (task_planner)
+u6v7w8x standard: spawn Planner (task_planner)
 ```
 
 **Agent 的 Git 权限：**
@@ -397,7 +409,7 @@ Sub-Agent（Planner/Builder/Evaluator）可以使用只读 Git 命令查看历�
 - ✅ 允许：`git status`、`git diff`、`git log`、`git add`
 - ❌ 禁止：`git commit`、`git reset`、`git checkout`、`git push`
 
-这样 Agent 可以查看文件变更历史（如 `git diff HEAD~1 solution.md` 查看 Builder 的修改），但提交由 Orchestrator 统一管理，确保提交历史的一致性和可追溯性。
+这样 Agent 可以查看文件变更历史（如 `git diff HEAD~1 solution.md` 查看 Builder 的修改），但提交由 `spawn.py` 在代码层自动完成，确保提交历史的一致性和可追溯性。
 
 ### 权限控制
 
@@ -437,7 +449,17 @@ AGENT_PROFILES = {
 python3 scripts/spawn.py Planner problems/example --tools "Read,Write,Bash"
 ```
 
-但通常不需要手动调整，默认配置已针对各 Agent 的职责优化。
+但通常不需要手动调整，默认配置已针对各角色的职责优化。
+
+### 记忆防火墙
+
+解题会话中的 sub-agent 应当"自己把题做出来"，而不是借用平时积累的记忆。系统从三层防御：
+
+1. **注入阻断**：所有 pipeline 会话（Orchestrator 与每个 sub-agent）都以 `--bare` 模式运行，Claude Code 的 auto-memory 注入、CLAUDE.md 自动发现均被关闭。
+2. **git 隔离**：`scripts/memory_guard.py` 在运行前后对记忆目录（`~/.claude/projects/<项目>/memory/`）做 git 快照。`quarantine` 模式（默认）下，运行期间对记忆目录的任何改动会在结束后被重置（所有改动都留在 git 历史中，不会被销毁）；`audit` 模式只记录不重置；`off` 关闭。
+3. **审计留痕**：审计结果写入 `debug/.memory_audit`，并追加到 `final_summary.md` 的"记忆审计"段落，可与答案的推导过程对照核查。
+
+此外，所有 Agent 的 prompt 都明确禁止读写 `~/.claude/` 下的任何文件（记忆、历史会话），也不得在任务文件中提及。
 
 ---
 
