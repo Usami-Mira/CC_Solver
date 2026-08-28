@@ -1,300 +1,443 @@
-# Tree Search — 树状搜索
+# Tree Search Pipeline
 
-## 核心思想
+**状态：** 📝 设计中  
+**适用场景：** 前沿研究问题，高度不确定，需要系统性探索
 
-"我不知道怎么做，但我知道怎么系统性地试错。"
-
-面对完全未知的前沿问题时：
-- 先列出所有可能的方向
-- 快速判断哪些明显不行
-- 有希望的才深入尝试
-- 失败了就回溯，试下一个
-- 记录所有尝试，避免重复
-
-这就像走迷宫：
-- 在每个岔路口，先快速看看每条路
-- 明显是死路的就不走
-- 走不通就退回来
-- 最终找到出口
-
----
-
-## 流程图
+## 架构
 
 ```
-第一步：生成探索树
-─────────────────────────────────
-面对问题，想出 2-3 个可能的大方向
-
-比如：
-  • 方向 A：解析方法
-  • 方向 B：数值方法
-  • 方向 C：近似方法
-
-
-第二步：快速筛选
-─────────────────────────────────
-对每个方向做快速验证（不深入计算）
-
-检查：
-  • 量纲是否一致？
-  • 极限情况是否合理？
-  • 是否违反守恒律？
-  • 量级是否合理？
-
-结果：
-  • 方向 A：量纲正确，有希望 ✓
-  • 方向 B：计算成本太高，暂时搁置
-  • 方向 C：量级不对，排除 ✗
-
-
-第三步：深入探索
-─────────────────────────────────
-选择"有希望"的方向，深入尝试
-
-选择方向 A，细化：
-  • A1：分离变量法
-  • A2：微扰论
-  • A3：变分法
-
-再次快速验证：
-  • A1：变量不可分离，排除 ✗
-  • A2：微扰参数很小，有希望 ✓
-  • A3：变分函数难选，暂时搁置
-
-
-第四步：完整计算
-─────────────────────────────────
-对"有希望"的子方向做完整计算
-
-选择 A2（微扰论）：
-  • 计算一阶修正 → 精度不够
-  • 计算二阶修正 → 精度满足要求 ✓
-
-成功！找到了可行的策略。
-
-
-第五步：执行最终方案
-─────────────────────────────────
-基于探索找到的策略（A2：二阶微扰论），
-执行完整的求解流程。
-
-
-如果中途失败？
-─────────────────────────────────
-回溯到上一个分支点，尝试其他方向
-
-比如：如果 A2 的二阶微扰也失败了
-  → 回溯，尝试 A3（变分法）
-  → 如果 A3 也失败
-  → 回溯，尝试 B（数值方法）
+Orchestrator
+  │
+  └── Strategist（决策者）
+      │
+      ├── 工具 1: expand_tree() — 展开新分支
+      ├── 工具 2: call_validator() — 快速理论验证（仅供参考）
+      ├── 工具 3: call_builder() — 完整计算
+      └── 工具 4: backtrack() — 回溯到上一节点
+      │
+      └── 探索完成后
+          └── Standard 流程：Builder → Evaluator（执行最终方案）
 ```
 
----
+## Agent 角色
 
-## 关键概念
+| Agent | 职责 | 权限 |
+|-------|------|------|
+| **Strategist** | 探索策略的决策者和协调者 | 可调用 Validator、Builder，可展开树、可回溯 |
+| **Validator** | 快速理论验证（量纲、极限、守恒律） | 只提供建议，Strategist 可以覆盖 |
+| **Builder** | 完整推导和计算 | 执行 Strategist 指定的策略 |
+| **Evaluator** | 审查最终方案 | 标准审查 |
 
-### 探索树（Search Tree）
+## 工作流
 
-不是一次性生成完整的树，而是**按需展开**：
-
-```
-初始：只有根节点
-  └── [问题]
-
-第一次展开：生成高层方向
-  └── [问题]
-      ├── 方向 A
-      ├── 方向 B
-      └── 方向 C
-
-探索 A 时，按需展开：
-  └── [问题]
-      ├── 方向 A
-      │   ├── A1
-      │   ├── A2
-      │   └── A3
-      ├── 方向 B（未展开）
-      └── 方向 C（已排除）
-
-探索 A2 时，进一步展开：
-  └── [问题]
-      ├── 方向 A
-      │   ├── A1（已排除）
-      │   ├── A2
-      │   │   ├── A2a（一阶）
-      │   │   └── A2b（二阶）
-      │   └── A3（未展开）
-      └── ...
-```
-
-**原则：** 只在需要时才展开，避免生成太多无用分支
-
-### 快速验证（Quick Validation）
-
-不深入计算，只做**简单的合理性检查**：
-
-**检查清单：**
-1. 量纲分析 — 公式两边的单位是否一致？
-2. 极限情况 — 当某个参数趋于 0 或 ∞ 时，结果是否合理？
-3. 守恒律 — 能量、动量、电荷是否守恒？
-4. 量级估算 — back-of-envelope 计算，数量级是否合理？
-5. 对称性 — 是否违反问题的对称性？
-
-**判断标准：**
-- 所有检查都通过 → **有希望**，可以深入
-- 某个检查失败 → **排除**，尝试其他方向
-- 不确定 → 标记为**待定**，可能需要深入计算才能判断
-
-**时间预算：** 每个方向的快速验证应该很快（不写代码，不算积分）
-
-### 回溯（Backtracking）
-
-当前路径走不通时，**退回到上一个分支点**，尝试其他方向。
+### 核心循环
 
 ```
-当前路径：问题 → A → A2 → A2a（失败）
-
-回溯一步：
-  → 退回到 A2，尝试 A2b
-
-如果 A2b 也失败：
-  → 退回到 A，尝试 A3
-
-如果 A3 也失败：
-  → 退回到根，尝试 B
+Strategist 决策循环：
+  │
+  ├── 观察当前状态（探索树 + 历史记录）
+  │
+  ├── 选择行动：
+  │   ├── expand_tree() — 生成新分支
+  │   ├── call_validator(strategy) — 快速验证
+  │   ├── call_builder(strategy) — 完整计算
+  │   └── backtrack() — 回溯
+  │
+  ├── 执行行动，观察结果
+  │
+  ├── 判断是否找到可行方案：
+  │   ├── 是 → 退出循环，进入 standard 流程
+  │   └── 否 → 继续决策循环
+  │
+  └── 检查终止条件：
+      ├── 找到方案 → 成功退出
+      ├── 所有分支耗尽 → 失败退出
+      └── 达到最大迭代次数 → 返回最佳尝试
 ```
 
-**保护机制：**
-- 设置最大深度（如 4 层），避免无限深入
-- 记录已尝试的路径，避免重复
-- 如果所有分支都失败，返回"最佳尝试"
+### 详细流程示例
 
----
+**迭代 1：初始探索**
+```
+Strategist: "问题复杂，先生成高层策略"
+  → expand_tree()
+  → 生成: [A: 解析方法, B: 数值方法, C: 近似估算]
 
-## 关键决策点
+Strategist: "先看看解析方法"
+  → call_validator(A)
+  → Validator: "PROMISING - 量纲正确，但方程可能复杂"
 
-### 决策 1：什么时候快速验证，什么时候深入计算？
+Strategist: "值得深入，展开子策略"
+  → expand_tree(A)
+  → 生成: [A1: 分离变量, A2: 微扰论, A3: 变分法]
+```
 
-**快速验证（默认）：**
-- 检查量纲、极限、守恒律
-- 不需要写代码
-- 几十秒内完成
+**迭代 2：细化探索**
+```
+Strategist: "试试分离变量"
+  → call_validator(A1)
+  → Validator: "DEAD_END - 变量不可分离"
 
-**深入计算（仅在必要时）：**
-- 快速验证说"有希望"或"不确定"
-- 需要完整推导才能判断
-- 计算成本高，谨慎使用
+Strategist: "同意，换一个。微扰论如何？"
+  → call_validator(A2)
+  → Validator: "UNCERTAIN - 需要看微扰参数大小"
 
-**原则：** 能用快速验证排除的，就不要深入计算
+Strategist: "不确定就直接算"
+  → call_builder(A2)
+  → Builder: "一阶微扰结果偏差 15%，不够精确"
 
-### 决策 2：选择哪个分支探索？
+Strategist: "需要二阶修正"
+  → expand_tree(A2)
+  → 生成: [A2a: 二阶微扰, A2b: 改进微扰论]
+```
 
-**启发式排序（优先探索"最有希望"的）：**
+**迭代 3：深入计算**
+```
+Strategist: "试试二阶微扰"
+  → call_builder(A2a)
+  → Builder: "二阶修正后偏差 < 2%，与实验一致"
 
-高优先级：
-- 快速验证通过
-- 解析方法（通常更优雅）
-- 计算成本低
+Strategist: "找到可行方案！退出探索"
+  → 将 A2a 的策略交给 standard 流程
+```
 
-低优先级：
-- 快速验证不确定
-- 数值方法（通常更暴力）
-- 计算成本高
+**Standard 流程执行**
+```
+Builder: 基于 A2a 策略，完整推导
+Evaluator: 审查最终方案
+输出: final_solution.md
+```
 
-**原则：** 先试最容易成功的
+## Strategist 的决策逻辑
 
-### 决策 3：什么时候放弃整个问题？
+```markdown
+# Strategist Prompt
 
-**放弃的信号：**
+你是 Strategist，负责系统性探索解题策略。
+
+## 可用工具
+
+1. **expand_tree([parent])** — 展开新分支
+   - 无参数：生成高层策略（2-3 个）
+   - 有参数：为指定节点生成子策略
+
+2. **call_validator(strategy)** — 快速理论验证
+   - 返回：PROMISING / DEAD_END / UNCERTAIN
+   - 仅供参考，你可以不同意
+
+3. **call_builder(strategy)** — 完整计算
+   - 用于：需要深入验证时
+   - 成本较高，谨慎使用
+
+4. **backtrack()** — 回溯到上一个分支点
+   - 用于：当前路径明显走不通
+
+## 决策原则
+
+1. **先广后深**：先生成高层策略，再逐步细化
+2. **快速筛选**：优先用 Validator 快速排除明显不可行的
+3. **灵活覆盖**：Validator 的意见是参考，你可以调用 Builder 覆盖
+4. **避免死循环**：同一分支最多尝试 3 次
+5. **及时回溯**：如果连续失败，考虑换大方向
+
+## 输出格式
+
+每次决策输出：
+```json
+{
+  "observation": "当前状态描述",
+  "action": "expand_tree / call_validator / call_builder / backtrack",
+  "parameters": {"strategy": "A2"},
+  "reasoning": "为什么做这个选择"
+}
+```
+
+## 终止条件
+
+- 找到可行方案（Builder 验证通过）
 - 所有分支都已探索且失败
-- 达到最大迭代次数（如 20 次）
-- 探索树已经很大，没有新方向
+- 达到最大迭代次数（配置项）
 
-**最后的尝试：**
-- 返回"最佳尝试"（最接近成功的）
-- 标记为"需要人工介入"
-- 记录探索历史，供人工参考
+找到可行方案后，输出最终策略描述，交给 standard 流程执行。
+```
 
----
+## 状态管理
 
-## 什么时候用 Tree Search
+```json
+{
+  "stage": "tree_search",
+  "tree": {
+    "root": "problem_X",
+    "children": [
+      {
+        "id": "A",
+        "name": "解析方法",
+        "status": "exploring",
+        "children": [
+          {"id": "A1", "status": "pruned", "reason": "不可分离"},
+          {
+            "id": "A2", 
+            "status": "exploring",
+            "children": [
+              {"id": "A2a", "status": "success", "solution": "..."},
+              {"id": "A2b", "status": "pending"}
+            ]
+          },
+          {"id": "A3", "status": "pending"}
+        ]
+      },
+      {"id": "B", "status": "pending"},
+      {"id": "C", "status": "pending"}
+    ]
+  },
+  "current_path": ["root", "A", "A2", "A2a"],
+  "backtrack_stack": [],
+  "iteration_count": 7,
+  "max_iterations": 20,
+  "next": "standard_execution"
+}
+```
 
-✅ **适合的场景：**
-- 前沿研究问题，答案未知
-- 高度不确定的问题，需要系统性试错
-- 容易走弯路的问题，需要记录所有尝试
-- 需要探索多种可能性的问题
+## 探索历史文件
 
-❌ **不适合的场景：**
-- 有明确标准解法的问题（用 Standard）
-- 已经有几个明确方案的问题（用 Parallel）
-- 时间紧迫的问题（探索次数不可控）
+维护 `exploration_tree.md`，记录完整探索过程：
 
----
+```markdown
+# 探索树
 
-## 与其他 Pipeline 的关系
-
-**vs Standard：**
-- Standard：一条直线
-- Tree Search：一棵树，有分支和回溯
-
-**vs Parallel：**
-- Parallel：所有方案同时开始
-- Tree Search：有先后顺序，根据前面的结果调整
-
-**vs Iterative：**
-- Iterative：一条路走到底，走不通才换
-- Tree Search：有策略地选择分支，主动回溯
-
-**什么时候选 Tree Search？**
-- 当你完全不知道怎么做，需要系统性探索时
-
----
-
-## 实际例子
-
-**问题：** 求解某个新型材料的电子结构
-
-**生成探索树：**
-- 方向 A：解析方法（微扰论）
-- 方向 B：数值方法（有限元）
-- 方向 C：半经验方法（紧束缚近似）
-
-**快速验证：**
-- 方向 A：微扰参数可能不很小 → 不确定
-- 方向 B：计算可行，但精度依赖网格 → 有希望
-- 方向 C：参数不确定，需要拟合 → 待定
-
-**深入探索 A：**
-- 展开 A：A1（一阶微扰）、A2（二阶微扰）
-- 快速验证 A1：精度不够 → 排除
-- 快速验证 A2：计算复杂，不确定
-- 深入计算 A2：收敛很慢 → 失败
-- **回溯**
-
-**深入探索 B：**
-- 展开 B：B1（粗网格）、B2（细网格）
-- 快速验证 B1：精度不够 → 排除
-- 快速验证 B2：精度满足，但计算量大 → 有希望
-- 深入计算 B2：成功 ✓
-
-**执行最终方案：**
-- 基于 B2（细网格有限元），完整计算
+## 根节点
+问题：[问题描述]
 
 ---
 
-## 核心优势
+## 分支 A：解析方法
 
-1. **系统性探索** — 不会遗漏可能的解法
-2. **节省资源** — 快速验证排除明显不可行的
-3. **可追溯** — 记录所有尝试，可复盘
-4. **灵活回溯** — 走不通就退回来，不死磕
-5. **适合未知问题** — 不需要事先知道答案
+### 快速验证
+- Validator: PROMISING
+- 理由：量纲正确，但方程复杂
 
-## 主要代价
+### 子分支 A1：分离变量
+- Validator: DEAD_END
+- 原因：变量不可分离
+- **已剪枝**
 
-1. **探索次数不可控** — 可能很快成功，也可能探索很久
-2. **状态管理复杂** — 需要维护探索树和历史
-3. **启发式设计困难** — 如何判断"最有希望"的分支
-4. **可能陷入局部最优** — 需要强制回溯的机制
+### 子分支 A2：微扰论
+- Validator: UNCERTAIN
+- 原因：需看微扰参数
+
+#### 完整计算（一阶）
+- Builder: 偏差 15%，不够精确
+- 决策：需要二阶修正
+
+#### 子子分支 A2a：二阶微扰
+- Builder: 偏差 < 2%，与实验一致
+- **✅ 成功**
+
+---
+
+## 最终选择
+
+策略 A2a（二阶微扰论）
+
+理由：
+1. 解析解形式清晰
+2. 精度满足要求（< 2%）
+3. 物理图像明确
+
+下一步：交给 standard 流程完整执行
+```
+
+## Git 提交策略
+
+| 时机 | 提交消息 |
+|------|----------|
+| 初始树生成 | `tree: 3 strategies generated` |
+| 展开分支 A | `tree: expanded branch A (analytical)` |
+| 验证 A1 失败 | `tree: pruned A1 (not separable)` |
+| 验证 A2 不确定 | `tree: A2 uncertain, need full computation` |
+| Builder 验证 A2 | `tree: A2 first-order insufficient` |
+| 展开 A2 | `tree: expanded A2 (perturbation refinements)` |
+| Builder 验证 A2a 成功 | `tree: A2a success - second-order perturbation` |
+| 探索完成 | `exploration: selected A2a after 7 iterations` |
+| Standard 流程 - Builder | `solution: based on A2a strategy` |
+| Standard 流程 - Evaluator | `review: final assessment` |
+| 最终汇总 | `final: summary` |
+
+## 输出文件
+
+```
+problem.md                          # 输入
+
+# 探索阶段
+├── exploration_tree.md             # 探索树（累积更新）
+├── iteration_1_expand.md           # 迭代 1：生成初始树
+├── iteration_2_validate_A.md       # 迭代 2：验证分支 A
+├── iteration_3_expand_A.md         # 迭代 3：展开 A 的子策略
+├── iteration_4_validate_A1.md      # 迭代 4：验证 A1（失败）
+├── iteration_5_validate_A2.md      # 迭代 5：验证 A2（不确定）
+├── iteration_6_build_A2.md         # 迭代 6：完整计算 A2
+├── iteration_7_expand_A2.md        # 迭代 7：展开 A2
+├── iteration_8_build_A2a.md        # 迭代 8：完整计算 A2a（成功）
+├── final_strategy.md               # 最终选择的策略
+
+# Standard 执行阶段
+├── plan.md                         # 基于 final_strategy.md
+├── solution.md                     # Builder 完整推导
+├── review.md                       # Evaluator 审查
+└── final_summary.md                # 汇总
+```
+
+## 配置参数
+
+```json
+{
+  "pipeline": "tree_search",
+  "max_iterations": 20,
+  "max_tree_depth": 4,
+  "max_branches_per_node": 5,
+  "auto_backtrack_after_failures": 3
+}
+```
+
+## 启发式排序（选择下一个分支）
+
+Strategist 在选择下一个要探索的分支时，可以使用启发式：
+
+```python
+def prioritize_branches(branches):
+    """根据启发式排序分支"""
+    scored_branches = []
+    for branch in branches:
+        score = 0
+        
+        # 启发式 1：Validator 的意见
+        if branch.validator_result == "PROMISING":
+            score += 10
+        elif branch.validator_result == "UNCERTAIN":
+            score += 5
+        elif branch.validator_result == "DEAD_END":
+            score -= 10
+        
+        # 启发式 2：物理直觉
+        if branch.method in ["analytical", "perturbation"]:
+            score += 3  # 解析方法优先
+        elif branch.method in ["numerical"]:
+            score += 1
+        
+        # 启发式 3：探索成本
+        if branch.estimated_cost == "low":
+            score += 2
+        elif branch.estimated_cost == "high":
+            score -= 2
+        
+        scored_branches.append((score, branch))
+    
+    return sorted(scored_branches, reverse=True)
+```
+
+## Strategist 调用工具的接口
+
+```python
+# Strategist 输出 JSON，Orchestrator 解析并调用对应 Agent
+
+# 示例 1：展开树
+{
+  "action": "expand_tree",
+  "parameters": {"parent": "A2"}
+}
+# → Orchestrator 调用 Strategist 生成子策略
+
+# 示例 2：调用 Validator
+{
+  "action": "call_validator",
+  "parameters": {"strategy": "A2a"}
+}
+# → Orchestrator spawn Validator Agent
+
+# 示例 3：调用 Builder
+{
+  "action": "call_builder",
+  "parameters": {"strategy": "A2a"}
+}
+# → Orchestrator spawn Builder Agent
+
+# 示例 4：回溯
+{
+  "action": "backtrack"
+}
+# → Orchestrator 更新当前路径，返回上一节点
+```
+
+## 与 Standard 流程的衔接
+
+探索完成后，Strategist 输出最终策略：
+
+```markdown
+# final_strategy.md
+
+## 选择的策略
+
+**策略 ID**: A2a  
+**方法**: 二阶微扰论
+
+## 策略描述
+
+1. 将问题写为 $H = H_0 + \lambda V$
+2. 求解 $H_0$ 的本征态（零阶近似）
+3. 计算一阶修正 $\langle n | V | n \rangle$
+4. 计算二阶修正 $\sum_{m \neq n} \frac{|\langle m | V | n \rangle|^2}{E_n - E_m}$
+5. 验证收敛性（$\lambda \ll 1$）
+
+## 关键参数
+
+- 微扰参数：$\lambda = 0.1$
+- 零阶能量：$E_0 = 10.5$ eV
+- 一阶修正：$\Delta E_1 = 0.8$ eV
+- 二阶修正：$\Delta E_2 = 0.2$ eV
+
+## 预期精度
+
+总能量 $E = E_0 + \Delta E_1 + \Delta E_2 = 11.5 \pm 0.2$ eV
+
+## 下一步
+
+交给 Builder 执行完整推导，包含所有计算步骤。
+```
+
+然后 Orchestrator 启动 standard 流程：
+- Planner：基于 `final_strategy.md` 生成 `plan.md`
+- Builder：执行 `plan.md`，生成 `solution.md`
+- Evaluator：审查 `solution.md`，生成 `review.md`
+
+## 优点
+
+- 系统性探索，不会遗漏可能的解法
+- 分层验证，节省计算资源
+- Strategist 有完全自主权，可以灵活决策
+- 保留完整探索历史，可追溯和复盘
+- 适合高度不确定的前沿问题
+
+## 局限
+
+- 探索过程可能很长（需要多次迭代）
+- Strategist 的决策质量直接影响效率
+- 状态管理复杂（树结构 + 探索历史）
+- Token 消耗可变（取决于探索深度）
+
+## 与其他 Pipeline 的对比
+
+| 特性 | Standard | Parallel | Iterative | Debate | Tree Search |
+|------|----------|----------|-----------|--------|-------------|
+| 探索方式 | 无 | 并行 N 个 | 循环迭代 | 多专家 | 树状搜索 |
+| 决策者 | Planner | Meta-Planner | Explorer | Coordinator | Strategist |
+| 回溯能力 | 无 | 无 | 有 | 无 | 有 |
+| 验证深度 | 完整 | 完整 | 完整 | 完整 | 分层 |
+| 适用问题 | 已知解法 | 多解法 | 开放性 | 跨领域 | 高度不确定 |
+
+## 实现注意事项
+
+1. **树的持久化**：探索树需要持久化到 JSON 文件，支持断点续传
+2. **Strategist 的上下文**：每次决策时，需要传入完整探索历史
+3. **工具调用解析**：Orchestrator 需要解析 Strategist 的 JSON 输出，调用对应 Agent
+4. **终止保护**：设置最大迭代次数，防止无限探索
+5. **最佳努力返回**：如果所有分支都失败，返回最接近成功的尝试
