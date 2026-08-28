@@ -4,10 +4,16 @@
 
 首次使用或依赖变更时，运行：
 ```bash
-bash setup.sh
+bash setup.sh            # 完整配置（pip 安装，首次较慢）
+bash setup.sh --quick    # 跳过 pip/RAG，只验证配置与防偷看机制
 ```
 
-这会自动创建 `textbook/rag_env` 虚拟环境并安装所有依赖。
+一键完成：先决条件检查（python3/git，claude CLI 缺失时自动尝试 `npm install -g`）、
+git 身份（`user.name`/`user.email` 缺失时提示配置，消除每次提交的身份告警）、
+API 配置（环境变量中已有则持久化到 `.env`，否则交互提示；`.env` 权限 600、已入
+`.gitignore`，`scripts/load_env.py` 在 run.py/spawn.py 启动时自动载入，已有环境变量优先）、
+`textbook/rag_env` 虚拟环境与依赖、path_guard 防偷看自检（工作区外访问必须被
+exit(2) 硬拦截）、记忆目录状态、回归测试。任何一项失败会以非零码退出并标 ✗。
 
 ## CRITICAL: Directory Structure and Working Directory
 
@@ -24,7 +30,7 @@ cd textbook && rag_env/bin/python rag_build/query_rag.py "your query"
 ```
 <project-root>/                              ← Project root (Bash default cwd)
 ├── config.json                            ← Agent configuration
-├── setup.sh                               ← 一键安装（RAG 虚拟环境 + 依赖）
+├── setup.sh                               ← 一键配置（git 身份 + claude CLI + API key + 依赖 + 防偷看自检 + 回归测试）
 ├── CLAUDE.md                              ← Project instructions
 ├── README.md, PROJECT_STRUCTURE.md        ← Documentation
 ├── scripts/                               ← 脚本目录
@@ -32,9 +38,11 @@ cd textbook && rag_env/bin/python rag_build/query_rag.py "your query"
 │   ├── spawn.py                           ← 子进程辅助：创建 sub-agent（含逐阶段 Git 快照、--resume 断点续传）
 │   ├── path_guard.py                      ← PreToolUse hook：硬拦截 workspace 外的文件访问
 │   ├── memory_guard.py                    ← 记忆防火墙：用 git 隔离/审计记忆目录
+│   ├── load_env.py                        ← 自动载入项目根 .env（setup.sh 写入的 API 配置）
 │   ├── stream_parser.py                   ← 流式输出解析器
 │   ├── statusline.py                      ← Claude Code 状态栏：实时显示 pipeline 进度
 │   ├── test_git_integration.py            ← Git 集成单元测试
+│   ├── test_path_guard.py                 ← path_guard 单元测试
 │   └── test_hang_kill.py                  ← 进程挂起防护回归测试
 ├── prompts/                               ← Agent system prompts
 │   ├── orchestrator.md                    ← 通用 Orchestrator prompt
@@ -123,7 +131,7 @@ Orchestrator **只调度、不解题、不读题**。为防止上下文膨胀导
 - **Workspace 布局**：`debug/`（状态/日志/汇报）、`tasks/`（所有任务文件）、`scripts/{builder,evaluator,verifier}/<任务名>/`（各角色脚本互相隔离，Evaluator 从 problem.md 独立转录、只审计不运行 Builder 的脚本）
 - 验证任务文件 `tasks/task_{id}.md`（含物理细节）由 **Planner** 撰写；Orchestrator 只写不含物理内容的样板调度指令
 - **Git 快照在代码层自动完成**：`spawn.py` 每次 spawn 前后各提交一次（文件锁互斥，并行安全），Orchestrator 无需手动 commit
-- **记忆防火墙 + 路径封锁**：会话**不再用 `--bare`**（它会把 hooks 一并跳过，使封锁失效）。防"前世记忆"与偷看由两层保证：① `scripts/path_guard.py`（PreToolUse hook，由 `run.py` 写入每个工作区的 `.claude/settings.json`，`WORKSPACE` 环境变量激活）用 exit(2) 硬拦截 workspace 外的一切文件访问（Read/Write/Edit/Glob/Grep/Bash 全覆盖，symlink 按 realpath 解析、禁止嵌套启动 `claude`），审计写入 `debug/.path_guard.log`；② `scripts/memory_guard.py`（config: `memory_guard`，默认 `quarantine`）运行期间**清空记忆目录工作树**（auto-memory 注入读不到任何内容）、运行后捕获期间写入并恢复基线，审计写入 `debug/.memory_audit` 并附入 final_summary.md
+- **记忆防火墙 + 路径封锁**：会话**不再用 `--bare`**（它会把 hooks 一并跳过，使封锁失效）。防"前世记忆"与偷看由两层保证：① `scripts/path_guard.py`（PreToolUse hook，由 `run.py` 写入每个工作区的 `.claude/settings.json`，`WORKSPACE` 环境变量激活）用 exit(2) 硬拦截 workspace 外的一切文件访问（Read/Write/Edit/Glob/Grep/Bash 全覆盖，symlink 按 realpath 解析、禁止嵌套启动 `claude`），审计写入 `debug/.path_guard.log`；② `scripts/memory_guard.py`（config: `memory_guard`，默认 `quarantine`）——Orchestrator 与 sub-agent 均以 workspace 为 cwd 运行，其 auto-memory 只落在**工作区专属记忆目录**（`~/.claude/projects/<workspace-slug>/memory/`）；pre_run 清空该目录、post_run 捕获期间写入并恢复基线。**主项目记忆目录（用户交互式会话所用）全程不触碰**，运行期间照常读写。审计写入 `debug/.memory_audit` 并附入 final_summary.md
 
 ## LaTeX Requirement
 
@@ -141,4 +149,4 @@ All physics formulas must use LaTeX inline math (`$...$`), not Unicode symbols:
 6. **Script paths**: Run scripts from project root, e.g., `python3 scripts/run.py`, not `python3 run.py`
 7. **Evaluator 必须检查代码**：Evaluator 必须先审计 Builder 的 scripts/ 目录（只读，不运行、不采信其输出），然后从 problem.md 独立转录做自己的验证；数值结果与已证明的结构性质矛盾时，优先怀疑自己的脚本
 8. **Workspace 布局**：状态/日志/汇报在 `debug/`，任务文件在 `tasks/`，脚本在 `scripts/<角色>/<任务名>/`；旧版布局的工作区在下次运行时自动迁移（`ensure_workspace_layout` 每次运行都会重写 .gitignore）
-9. **记忆隔离与路径封锁**：不再用 `--bare`（它会禁用 hooks）。防偷看靠 `path_guard.py`（PreToolUse hook，`WORKSPACE` 环境变量激活，exit(2) 硬拦截 + `debug/.path_guard.log` 审计）；记忆隔离靠 `memory_guard` 运行期清空记忆目录、运行后恢复基线
+9. **记忆隔离与路径封锁**：不再用 `--bare`（它会禁用 hooks）。防偷看靠 `path_guard.py`（PreToolUse hook，`WORKSPACE` 环境变量激活，exit(2) 硬拦截 + `debug/.path_guard.log` 审计）；记忆隔离靠 `memory_guard` 运行期清空**工作区专属**记忆目录、运行后恢复基线——主项目记忆目录（交互式会话）不受影响

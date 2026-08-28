@@ -17,56 +17,38 @@
 
 ## 环境安装
 
-### 安装 Claude Code
+### 一键配置（推荐）
 
-本项目依赖 [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) CLI 工具：
-
-```bash
-npm install -g @anthropic-ai/claude-code
-```
-
-### 安装 Git
-
-系统使用 Git 进行版本控制和解题过程追踪：
+所有配置都在一个脚本里完成：
 
 ```bash
-# Ubuntu/Debian
-sudo apt-get install git
-
-# macOS
-brew install git
-
-# Windows
-# 下载 Git for Windows: https://git-scm.com/download/win
+bash setup.sh            # 完整配置（含 pip 安装，首次较慢）
+bash setup.sh --quick    # 跳过 pip/RAG，只验证配置与防偷看机制
 ```
 
-验证安装：
-```bash
-git --version
-```
+setup.sh 依次处理（幂等，可重复运行；能交互的条目都支持环境变量预置）：
 
-**注意**：Git 用于追踪每道题的解题过程演变（plan → solution → review），支持自动提交和迭代历史查看。
+1. **先决条件**：检查 python3 / git；claude CLI 缺失时自动尝试
+   `npm install -g @anthropic-ai/claude-code`（需 Node.js ≥18）
+2. **Git 身份**：`user.name` / `user.email` 未配置时提示输入并写入全局配置
+   （否则每次自动提交都会打印身份告警）
+3. **API 配置**：检测 `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY`——
+   环境变量中已有则持久化到项目根 `.env`；没有则交互提示输入。
+   `.env` 权限 600 且已入 `.gitignore`（**密钥绝不会被提交**）；
+   `scripts/run.py` 与 `spawn.py` 启动时经 `scripts/load_env.py` 自动载入，
+   已 export 的环境变量始终优先。按量计费/第三方网关（如硅基流动）用户
+   在此步填入 key 与 Base URL 即可
+4. **RAG 环境**：创建 `textbook/rag_env` 虚拟环境并安装全部依赖
+   （PyTorch、FlagEmbedding、Weaviate 客户端等）
+5. **自检与回归测试**：path_guard 防偷看封锁自检、记忆防火墙状态、单元/回归测试
 
-### 安装项目依赖
+任何一项失败都会以非零码退出并用 ✗ 标出。
 
-首次使用或依赖变更时，运行项目根目录的安装脚本：
-
-```bash
-bash setup.sh
-```
-
-这会自动创建 `textbook/rag_env` 虚拟环境并安装 RAG 知识库所需的全部依赖（PyTorch、FlagEmbedding、Weaviate 客户端等）。
-
-### 配置 API Key（按量计费模式）
-
-如果使用第三方兼容 API（如硅基流动等），设置环境变量：
-
-```bash
-export ANTHROPIC_API_KEY="your-api-key-here"
-export ANTHROPIC_BASE_URL="https://your-api-endpoint.example.com/v1"
-```
-
-将上述两行加入 `~/.bashrc` 或 `~/.zshrc` 以持久化。
+> setup.sh 只检查 python3/git 而不代为安装（需要 sudo）。如缺失：
+> Ubuntu/Debian `sudo apt-get install python3 git`，macOS `brew install python git`，
+> Windows 安装 [Git for Windows](https://git-scm.com/download/win)。
+> Git 用于追踪每道题的解题过程演变（plan → solution → review），
+> 支持自动提交和迭代历史查看。
 
 ### 放置题目
 
@@ -260,16 +242,19 @@ git diff HEAD~2 solution.md
 ```
 .
 ├── config.json              # 项目配置（模型名、超时时间、并行数）
-├── setup.sh                 # 一键安装脚本（RAG 虚拟环境 + 依赖）
+├── setup.sh                 # 一键配置（git 身份 + claude CLI + API key + 依赖 + 防偷看自检 + 回归测试）
 ├── CLAUDE.md                # Claude Code 项目配置
 ├── PROJECT_STRUCTURE.md     # 详细项目结构和开发指南
 ├── scripts/                 # 脚本目录
 │   ├── run.py               # 入口脚本：组装 Orchestrator prompt 并启动
 │   ├── spawn.py             # 子进程辅助脚本：创建 sub-agent，含权限配置、逐阶段 Git 快照、--resume 续传
-│   ├── memory_guard.py      # 记忆防火墙：用 git 快照隔离/审计 ~/.claude 记忆目录
+│   ├── path_guard.py        # PreToolUse hook：硬拦截工作区外文件访问（防偷看）
+│   ├── memory_guard.py      # 记忆防火墙：运行期清空/运行后恢复工作区专属记忆目录
+│   ├── load_env.py          # 自动载入项目根 .env（setup.sh 写入的 API 配置）
 │   ├── stream_parser.py     # 流式输出解析器
 │   ├── statusline.py        # Claude Code 状态栏：实时显示 pipeline 进度
 │   ├── test_git_integration.py  # Git 集成单元测试
+│   ├── test_path_guard.py   # path_guard 单元测试
 │   └── test_hang_kill.py    # 进程挂起防护回归测试
 ├── prompts/                 # Agent 定义和 Skill 定义
 │   ├── orchestrator.md      # 通用 Orchestrator system prompt
@@ -456,7 +441,7 @@ python3 scripts/spawn.py Planner problems/example --tools "Read,Write,Bash"
 解题会话中的 sub-agent 应当"自己把题做出来"，而不是借用平时积累的记忆，也不能偷看标准答案或其他题目的解答。系统从三层防御：
 
 1. **路径硬封锁**：`scripts/path_guard.py` 是 PreToolUse hook，由 `run.py` 写入每个工作区的 `.claude/settings.json`，经 `WORKSPACE` 环境变量激活。它用 `exit(2)` 硬拦截 workspace 之外的一切文件访问——Read/Write/Edit/Glob/Grep/Bash 全覆盖（Bash 命令分词扫描、symlink 按 realpath 解析、禁止嵌套启动 `claude`）。允许根：工作区本身 + `textbook/`（RAG 只读）+ `scripts/`（仅 Orchestrator）。每次拦截都记入 `debug/.path_guard.log`。
-2. **记忆清空（阻断注入）**：会话不再用 `--bare`——它会连同 hooks 一起跳过、使上面的封锁失效。替代方案：`scripts/memory_guard.py` 在运行前把记忆目录（`~/.claude/projects/<slug>/memory/`，含工作区专属 slug）的工作树**清空**（先提交进 git 历史），运行期间 auto-memory 注入读不到任何"前世记忆"；运行后捕获期间写入并恢复基线。`quarantine`（默认）/`audit`/`off` 三档。
+2. **记忆清空（阻断注入）**：会话不再用 `--bare`——它会连同 hooks 一起跳过、使上面的封锁失效。替代方案：Orchestrator 与所有 sub-agent 都以 workspace 为 cwd 运行，auto-memory 只会落在**工作区专属记忆目录**（`~/.claude/projects/<workspace-slug>/memory/`）；`scripts/memory_guard.py` 在运行前清空该目录（先提交进 git 历史），运行后捕获期间写入并恢复基线。`quarantine`（默认）/`audit`/`off` 三档。**主项目记忆目录（你交互式会话的记忆）全程不触碰**，运行期间照常读写。
 3. **审计留痕**：审计结果写入 `debug/.memory_audit`，并追加到 `final_summary.md` 的"记忆审计"段落，可与答案的推导过程对照核查。
 
 此外，所有 Agent 的 prompt 都明确禁止读写 `~/.claude/` 下的任何文件（记忆、历史会话），也不得在任务文件中提及。

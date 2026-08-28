@@ -9,9 +9,9 @@
 | `scripts/run.py` | 入口脚本，启动 Orchestrator（含记忆防火墙前后置、--resume 续跑、工作区 `.claude` hook 注入） | 低 |
 | `scripts/spawn.py` | 子进程辅助，创建 sub-agent（含逐阶段 Git 快照、--resume 断点续传、进度文件清理） | 低 |
 | `scripts/path_guard.py` | PreToolUse hook：`WORKSPACE` 激活，硬拦截工作区外文件访问（审计入 `debug/.path_guard.log`） | 低 |
-| `scripts/memory_guard.py` | 记忆防火墙：运行期清空/运行后恢复 `~/.claude` 记忆目录（quarantine/audit/off） | 低 |
+| `scripts/memory_guard.py` | 记忆防火墙：运行期清空/运行后恢复工作区专属记忆目录（quarantine/audit/off） | 低 |
 | `scripts/stream_parser.py` | 流式输出解析器 | 低 |
-| `setup.sh` | 一键配置：依赖 + path_guard 防偷看自检 + 回归测试（`--quick` 跳过 pip/RAG） | 低 |
+| `setup.sh` | 一键配置：git 身份 + claude CLI + API key（.env）+ 依赖 + path_guard 自检 + 回归测试（`--quick` 跳过 pip/RAG） | 低 |
 | `config.json` | 项目配置（模型、超时、并行数） | 低 |
 | `prompts/orchestrator.md` | 通用 Orchestrator 系统提示词 | 中 |
 | `prompts/agents/*.md` | 各 Agent 系统提示词 | 中 |
@@ -23,7 +23,7 @@
 ```
 CC_Solver/
 ├── config.json               # 运行时配置
-├── setup.sh                  # 一键配置（依赖 + 防偷看自检 + 回归测试）
+├── setup.sh                  # 一键配置（git 身份 + claude CLI + API key + 依赖 + 防偷看自检 + 回归测试）
 ├── CLAUDE.md                 # Claude Code 项目配置
 ├── README.md                 # 用户文档
 ├── PROJECT_STRUCTURE.md      # 本文档
@@ -32,7 +32,8 @@ CC_Solver/
 │   ├── run.py                #   入口：组装 Orchestrator prompt 并启动（注入 .claude hook 配置）
 │   ├── spawn.py              #   子进程创建：被 Orchestrator 调用（自动 git 快照 + --resume）
 │   ├── path_guard.py         #   PreToolUse hook：硬拦截工作区外文件访问
-│   ├── memory_guard.py       #   记忆防火墙：运行期清空/运行后恢复记忆目录
+│   ├── memory_guard.py       #   记忆防火墙：运行期清空/运行后恢复工作区专属记忆目录
+│   ├── load_env.py           #   自动载入项目根 .env（setup.sh 写入的 API 配置）
 │   ├── stream_parser.py      #   流式输出解析器
 │   ├── statusline.py         #   Claude Code 状态栏（显示 pipeline 实时进度 + Agent 进度条）
 │   ├── test_git_integration.py # Git 集成单元测试
