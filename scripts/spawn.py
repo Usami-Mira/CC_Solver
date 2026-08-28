@@ -253,8 +253,10 @@ def main():
         os.makedirs(debug_dir, exist_ok=True)
 
     system_prompt = open(prompt_file_abs, encoding="utf-8").read()
+    # 模板变量：{project_root} 永远替换（移植性）；{workspace} 用绝对路径
+    # 替换（下面会把 cwd 改成 workspace）
+    system_prompt = system_prompt.replace("{project_root}", str(PROJECT_ROOT))
     if workspace:
-        # 用绝对路径替换 {workspace}，因为下面会把 cwd 改成 workspace
         system_prompt = system_prompt.replace("{workspace}", workspace_abs)
     task = open(task_file_abs, encoding="utf-8").read()
     if workspace:

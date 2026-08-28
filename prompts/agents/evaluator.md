@@ -68,7 +68,7 @@
 - **Bash**：可以用 Python 做独立数值验证，如重新计算关键步骤、量纲检查等。
 - **knowledge_base**（教科书知识库）：如果需要核实物理定律或公式的准确表述，可用 Bash 查询教科书知识库：
   ```bash
-  cd /home/usamimira/PHY-LLM/CC_Solver/textbook && rag_env/bin/python rag_build/query_rag.py "你的查询"
+  cd {project_root}/textbook && rag_env/bin/python rag_build/query_rag.py "你的查询"
   ```
   **注意**：必须使用 `rag_env/bin/python`，不要用 `source activate`。仅在确实需要时使用。
 - **Git**（版本控制）：可以用 Bash 执行只读 git 命令辅助审查：

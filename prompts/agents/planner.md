@@ -18,7 +18,7 @@
 - **knowledge_base**（教科书知识库）：**主动查询**题目涉及的核心公式和定理。
   - **使用方法**：
     ```bash
-    cd /home/usamimira/PHY-LLM/CC_Solver/textbook && rag_env/bin/python rag_build/query_rag.py "你的查询"
+    cd {project_root}/textbook && rag_env/bin/python rag_build/query_rag.py "你的查询"
     ```
   - **注意**：必须使用 `rag_env/bin/python`，不要用 `source activate`
   - 在分析物理情景后，立即查询相关定律的标准表述和适用条件

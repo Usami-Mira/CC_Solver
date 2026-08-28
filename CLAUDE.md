@@ -11,9 +11,9 @@ bash setup.sh
 
 ## CRITICAL: Directory Structure and Working Directory
 
-**Project Root**: `/home/usamimira/PHY-LLM/CC_Solver`
+**Project Root**: 本仓库根目录（即包含此 CLAUDE.md 的目录）。下文相对路径均相对于项目根；代码内部一律用运行时推导的路径（`Path(__file__).parent` 等），不写死绝对路径。
 
-**Bash tool default working directory**: `/home/usamimira/PHY-LLM/CC_Solver`
+**Bash tool default working directory**: 项目根目录
 
 **IMPORTANT**: RAG 查询使用 `textbook/rag_env/bin/python` 直接调用，**不要** source activate：
 ```bash
@@ -22,7 +22,7 @@ cd textbook && rag_env/bin/python rag_build/query_rag.py "your query"
 
 ### Directory Layout
 ```
-/home/usamimira/PHY-LLM/CC_Solver/         ← Project root (Bash default cwd)
+<project-root>/                              ← Project root (Bash default cwd)
 ├── config.json                            ← Agent configuration
 ├── setup.sh                               ← 一键安装（RAG 虚拟环境 + 依赖）
 ├── CLAUDE.md                              ← Project instructions
@@ -65,19 +65,21 @@ cd textbook && rag_env/bin/python rag_build/query_rag.py "查询内容"
 
 ## Key Paths
 
-- **Models**: `/home/usamimira/PHY-LLM/CC_Solver/textbook/models/bge-m3` (BGE-M3, 1024-dim, multilingual)
-- **Weaviate data**: `/home/usamimira/PHY-LLM/CC_Solver/textbook/weaviate_data`
-- **RAG scripts**: `/home/usamimira/PHY-LLM/CC_Solver/textbook/rag_build/`
+所有路径均相对于项目根目录。
+
+- **Models**: `textbook/models/bge-m3` (BGE-M3, 1024-dim, multilingual)
+- **Weaviate data**: `textbook/weaviate_data`
+- **RAG scripts**: `textbook/rag_build/`
   - `embed_bge.py` — Generate embeddings and store in Weaviate
   - `query_rag.py` — Query the physics textbook knowledge base
-- **Merged chunks**: `/home/usamimira/PHY-LLM/CC_Solver/textbook/merged/chunks_translated.json` (1139 chunks)
+- **Merged chunks**: `textbook/merged/chunks_translated.json` (1139 chunks)
 
 ## Environment Variables
 
-When running RAG scripts, set these (or `scripts/run.py` sets them automatically):
+When running RAG scripts, set these (or `scripts/run.py` sets them automatically). 在项目根目录下：
 ```bash
-export RAG_MODEL_DIR=/home/usamimira/PHY-LLM/CC_Solver/textbook/models/bge-m3
-export RAG_DATA_DIR=/home/usamimira/PHY-LLM/CC_Solver/textbook/weaviate_data
+export RAG_MODEL_DIR="$(pwd)/textbook/models/bge-m3"
+export RAG_DATA_DIR="$(pwd)/textbook/weaviate_data"
 ```
 
 For HuggingFace downloads (user in China):

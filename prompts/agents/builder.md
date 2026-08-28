@@ -17,7 +17,7 @@
 - **knowledge_base**（教科书知识库）：**在推导过程中主动查询**确认公式、常数或物理概念。
   - **使用方法**：
     ```bash
-    cd /home/usamimira/PHY-LLM/CC_Solver/textbook && rag_env/bin/python rag_build/query_rag.py "你的查询"
+    cd {project_root}/textbook && rag_env/bin/python rag_build/query_rag.py "你的查询"
     ```
   - **注意**：必须使用 `rag_env/bin/python`，不要用 `source activate`
   - 遇到公式不确定时立即查询，避免凭记忆出错
