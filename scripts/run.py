@@ -9,6 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent.resolve()
 SCRIPTS_DIR = Path(__file__).parent.resolve()
 sys.path.insert(0, str(SCRIPTS_DIR))
+import load_env  # noqa: F401 — 自动载入 .env（setup.sh 写入的 API 配置）
 from stream_parser import parse_stream_event
 import memory_guard
 
@@ -446,7 +447,7 @@ def main():
         f"开始前先 cat {workspace_abs}/debug/.state 确认是否有断点（旧布局可能在 {workspace_abs}/.state）；没有则从第一阶段开始。\n"
         f"创建 sub-Agent：Bash 调用 python3 {SCRIPTS_DIR}/spawn.py <Role> {workspace_abs} <prompt_file> <task_file>\n"
         f"全部阶段完成后，将最终结果写入 {workspace_abs}/final_summary.md。\n"
-        f"Workspace（绝对路径）: {workspace_abs}；你的 shell cwd 是项目根目录，所有文件操作请用上面的绝对路径。"
+        f"Workspace（绝对路径）: {workspace_abs}；你的 shell cwd 就是该工作区，文件操作请一律用上面的绝对路径。"
     )
     resume_prompt_text = (
         f"断点续传：上次会话被中断。请先 cat {workspace_abs}/debug/.state 恢复进度，然后从中断处继续编排。\n"
@@ -474,6 +475,11 @@ def main():
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=log_file, text=True,
                 start_new_session=True, env=orch_env,
+                # cwd=workspace：Orchestrator 的记忆 slug 与 sub-agent 一致
+                # （工作区专属），主项目记忆目录全程不被触碰——用户在运行期间
+                # 的交互式 CC 会话照常读写记忆。path_guard 封锁不受影响：
+                # workspace/.claude/settings.json 由 ensure_workspace_layout 注入。
+                cwd=workspace_abs,
             )
 
             result_event = None

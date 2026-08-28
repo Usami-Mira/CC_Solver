@@ -20,6 +20,7 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPTS_DIR.parent.resolve()
 sys.path.insert(0, str(SCRIPTS_DIR))
+import load_env  # noqa: F401 — 自动载入 .env（setup.sh 写入的 API 配置）
 from stream_parser import parse_stream_event
 
 CONFIG = json.loads((PROJECT_ROOT / "config.json").read_text(encoding="utf-8"))
