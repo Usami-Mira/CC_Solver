@@ -5,12 +5,13 @@
 背景：
 - 会话不再用 --bare（--bare 会连同 PreToolUse hooks 一起跳过，
   使 path_guard 文件封锁失效）。auto-memory 注入改由本脚本阻断：
-  quarantine 模式下，pre_run 记录基线后**清空记忆目录工作树**，
+  quarantine 模式下，pre_run 记录基线后**清空工作区记忆目录的工作树**，
   运行期间会话即使触发 auto-memory 也读不到任何"前世记忆"；
   post_run 把运行期间的改动捕获进 git 历史，再恢复基线。
-- 除主项目记忆目录外，每个题目工作区还有自己的记忆 slug
-  （~/.claude/projects/<workspace-slug>/memory/，按 cwd 路径生成）——
-  sub-agent 的 cwd 是 workspace，所以这个目录同样在防守范围内。
+- 防守范围**仅限工作区专属记忆目录**（~/.claude/projects/<workspace-slug>/memory/，
+  按 cwd 路径生成）。Orchestrator 与所有 sub-agent 的 cwd 都是 workspace，
+  它们的记忆都落在这里。主项目记忆目录（交互式会话所用）全程不触碰——
+  用户在运行期间照常读写自己的记忆，不受 pipeline 影响。
 - 除 auto-memory 外，Agent 也可能用工具直接读写记忆文件：
   直接文件访问由 scripts/path_guard.py（PreToolUse hook）硬拦截，
   本脚本负责运行窗口内的清空/捕获/恢复与审计。
@@ -25,8 +26,9 @@
 配置（config.json 顶层）：
     "memory_guard": "quarantine" | "audit" | "off"     （默认 quarantine）
 
-注意：记忆目录也是交互式会话的记忆所在地。quarantine 只会在 pipeline 运行
-窗口内清空/重置改动，且所有改动都先提交进 git 历史——没有任何东西会被真正删除。
+注意：quarantine 只会在 pipeline 运行窗口内清空/重置**工作区**记忆目录的改动，
+且所有改动都先提交进 git 历史——没有任何东西会被真正删除。主项目记忆目录
+（你交互式会话的记忆）不在防守范围内，始终安全。
 """
 
 import sys, os, re, json, shutil, subprocess, time
@@ -45,13 +47,16 @@ def memory_dir(project_root=PROJECT_ROOT):
 
 
 def memory_dirs(workspace):
-    """防守范围：主项目记忆目录 + 该工作区的专属记忆目录（按 cwd slug）。"""
-    dirs = [memory_dir()]
-    if workspace:
-        ws_dir = memory_dir(Path(workspace).resolve())
-        if ws_dir != dirs[0]:
-            dirs.append(ws_dir)
-    return dirs
+    """防守范围：仅该工作区的专属记忆目录（按 cwd slug）。
+
+    Orchestrator 与 sub-agent 的 cwd 都是 workspace，auto-memory 只会落到
+    这里。主项目记忆目录属于用户的交互式会话，不属于防守范围。
+    """
+    if not workspace:
+        return []
+    ws_dir = memory_dir(Path(workspace).resolve())
+    main_dir = memory_dir()
+    return [] if ws_dir == main_dir else [ws_dir]
 
 
 def _git(mem, *args, check=False):
@@ -63,14 +68,21 @@ def _git(mem, *args, check=False):
 
 
 def ensure_repo(mem):
-    """确保记忆目录是 git 仓库；目录不存在则返回 False（无记忆可防守）。"""
+    """确保记忆目录是 git 仓库且 HEAD 存在；目录不存在则返回 False。
+
+    不在此处提交工作区内容——提交时机由 pre_run/post_run 决定，
+    否则会把本应"捕获"的运行期改动误当成基线吞掉。
+    """
     if not mem.is_dir():
         return False
     if not (mem / ".git").exists():
         _git(mem, "init", check=True)
         _git(mem, "config", "user.email", GIT_USER[0], check=True)
         _git(mem, "config", "user.name", GIT_USER[1], check=True)
-    commit_all(mem, "memory_guard: initial baseline")
+    if not head_sha(mem):
+        # 全新空目录没有任何提交：用空提交占位，使基线/恢复始终有锚点
+        _git(mem, "commit", "--allow-empty", "-m",
+             "memory_guard: initial baseline", check=True)
     return True
 
 
@@ -246,9 +258,18 @@ def main():
     elif cmd == "post" and len(sys.argv) >= 3:
         print(render(post_run(sys.argv[2])))
     elif cmd == "restore":
-        # 安全网：若运行中途崩溃导致记忆目录停留在"已清空"状态，
+        # 安全网：若运行中途崩溃导致工作区记忆目录停留在"已清空"状态，
         # 从 git 历史恢复——取最近一个"运行前"提交（基线仍在历史里）。
-        for mem in memory_dirs(None):
+        # （主项目记忆目录不在防守范围，无需恢复。）
+        candidates = []
+        projects_dir = Path.home() / ".claude" / "projects"
+        main_slug = re.sub(r"[^a-zA-Z0-9]", "-", str(PROJECT_ROOT))
+        if projects_dir.is_dir():
+            for p in projects_dir.iterdir():
+                # 只碰本项目及其工作区的 slug（前缀匹配），不动其它项目
+                if p.name.startswith(main_slug) and (p / "memory" / ".git").exists():
+                    candidates.append(p / "memory")
+        for mem in candidates:
             if not (mem / ".git").exists():
                 continue
             r = _git(mem, "log", "--oneline", "--all", "-50")
