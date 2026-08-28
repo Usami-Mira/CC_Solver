@@ -1,0 +1,9 @@
+# Agent runtime artifacts
+.*.log
+.*.result
+.*.metrics
+.state
+query_rag.py
+__pycache__/
+*.pyc
+*.tmp
