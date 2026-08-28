@@ -11,7 +11,7 @@
 | `scripts/path_guard.py` | PreToolUse hook：`WORKSPACE` 激活，硬拦截工作区外文件访问（审计入 `debug/.path_guard.log`） | 低 |
 | `scripts/memory_guard.py` | 记忆防火墙：运行期清空/运行后恢复 `~/.claude` 记忆目录（quarantine/audit/off） | 低 |
 | `scripts/stream_parser.py` | 流式输出解析器 | 低 |
-| `setup.sh` | 一键安装（RAG 虚拟环境 + 依赖） | 低 |
+| `setup.sh` | 一键配置：依赖 + path_guard 防偷看自检 + 回归测试（`--quick` 跳过 pip/RAG） | 低 |
 | `config.json` | 项目配置（模型、超时、并行数） | 低 |
 | `prompts/orchestrator.md` | 通用 Orchestrator 系统提示词 | 中 |
 | `prompts/agents/*.md` | 各 Agent 系统提示词 | 中 |
@@ -23,7 +23,7 @@
 ```
 CC_Solver/
 ├── config.json               # 运行时配置
-├── setup.sh                  # 一键安装脚本（RAG 虚拟环境 + 依赖）
+├── setup.sh                  # 一键配置（依赖 + 防偷看自检 + 回归测试）
 ├── CLAUDE.md                 # Claude Code 项目配置
 ├── README.md                 # 用户文档
 ├── PROJECT_STRUCTURE.md      # 本文档
@@ -36,6 +36,7 @@ CC_Solver/
 │   ├── stream_parser.py      #   流式输出解析器
 │   ├── statusline.py         #   Claude Code 状态栏（显示 pipeline 实时进度 + Agent 进度条）
 │   ├── test_git_integration.py # Git 集成单元测试
+│   ├── test_path_guard.py    #   path_guard（防偷看）单元测试
 │   └── test_hang_kill.py     #   进程挂起防护回归测试
 │
 ├── prompts/                  # Agent 定义
