@@ -112,7 +112,7 @@ def ensure_workspace_layout(workspace):
                     "hooks": [
                         {
                             "type": "command",
-                            "command": f"python3 {SCRIPTS_DIR / 'path_guard.py'}",
+                            "command": f"python3 \"{SCRIPTS_DIR / 'path_guard.py'}\"",
                         }
                     ],
                 }

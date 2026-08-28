@@ -1,7 +1,7 @@
 {
   "statusLine": {
     "type": "command",
-    "command": "python3 /home/usamimira/PHY-LLM/CC_Solver/scripts/statusline.py"
+    "command": "d=$(pwd); while [ ! -f \"$d/scripts/statusline.py\" ] && [ \"$d\" != / ]; do d=${d%/*}; done; [ -f \"$d/scripts/statusline.py\" ] && python3 \"$d/scripts/statusline.py\" || true"
   },
   "hooks": {
     "PreToolUse": [
@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /home/usamimira/PHY-LLM/CC_Solver/scripts/path_guard.py"
+            "command": "d=$(pwd); while [ ! -f \"$d/scripts/path_guard.py\" ] && [ \"$d\" != / ]; do d=${d%/*}; done; [ -f \"$d/scripts/path_guard.py\" ] && exec python3 \"$d/scripts/path_guard.py\" || exit 0"
           }
         ]
       }
