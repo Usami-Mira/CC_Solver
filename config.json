@@ -83,6 +83,28 @@
         "Builder": "qwen3.6-plus",
         "Evaluator": "qwen3.6-plus"
       }
+    },
+
+    "deep_search": {
+      "model": "qwen3.6-plus",
+      "timeout_seconds": 864000,
+      "max_iterations": 20,
+      "max_revisions": 8,
+      "max_rounds": 3,
+      "max_motions": 6,
+      "ephemeral_timeout": 6000,
+      "deep_timeout": 18000,
+      "agent_models": {
+        "Planner": "qwen3.6-plus",
+        "Theorist": "qwen3.6-plus",
+        "Computationalist": "qwen3.6-plus",
+        "Experimentalist": "qwen3.6-plus",
+        "Critic": "qwen3.6-plus",
+        "Secretary": "qwen3.6-plus",
+        "Verifier": "qwen3.6-plus",
+        "Builder": "qwen3.6-plus",
+        "Evaluator": "qwen3.6-plus"
+      }
     }
   }
 }

@@ -24,8 +24,10 @@ import load_env  # noqa: F401 — 自动载入 .env（setup.sh 写入的 API 配
 from stream_parser import parse_stream_event
 
 CONFIG = json.loads((PROJECT_ROOT / "config.json").read_text(encoding="utf-8"))
-# model / agent_models / timeout 都在 configs.<pipeline> 下，不在顶层
-PIPELINE = CONFIG.get("pipeline", "standard")
+# model / agent_models / timeout 都在 configs.<pipeline> 下，不在顶层。
+# run.py 通过 SOLVER_PIPELINE 环境变量把 --pipeline 覆盖传过来，
+# 保证 sub-agent 的模型/超时与 Orchestrator 用的是同一份配置。
+PIPELINE = os.environ.get("SOLVER_PIPELINE") or CONFIG.get("pipeline", "standard")
 PIPELINE_CONFIG = CONFIG.get("configs", {}).get(PIPELINE, {})
 DEFAULT_MODEL = PIPELINE_CONFIG.get("model", CONFIG.get("model", "qwen3.6-plus"))
 AGENT_MODELS = PIPELINE_CONFIG.get("agent_models", {})
@@ -118,6 +120,24 @@ def git_snapshot(workspace, message):
                 print(f"[spawn] git snapshot warning: {out.strip()[:200]}", file=sys.stderr)
     except Exception as e:
         print(f"[spawn] git snapshot warning: {e}", file=sys.stderr)
+
+
+def write_failure_result(result_path, role, err):
+    """spawn 层失败时写入失败标记，防止 Orchestrator 读到**上一次**成功运行的
+    陈旧 .result（树类流水线里同一角色会被反复派活，陈旧汇报会误导路由）。
+
+    用 BLOCKED 而非 FAIL：这是环境性失败（超时/无结果/进程错误），不是
+    "路线走不通"——各流水线对 BLOCKED 的处理都是重试/跳过而非判死端。
+    """
+    try:
+        with open(result_path, "w", encoding="utf-8") as f:
+            f.write("HANDOFF\n"
+                    "STATUS: BLOCKED\n"
+                    "OUTPUT: -\n"
+                    f"SUMMARY: spawn 层失败（非 {role} 本人汇报）：{err}。可重试或 --resume。\n"
+                    f"ERROR: {err}\n")
+    except OSError:
+        pass
 
 
 def resolve_task_file(workspace, task_file):
@@ -338,6 +358,7 @@ def main():
                     print(f"[spawn:{role}] error: {err}")
                     if session_id:
                         open(session_path, "w", encoding="utf-8").write(session_id)
+                    write_failure_result(result_path, role, err)
                     git_snapshot(workspace, f"{role} timeout ({os.path.basename(task_file_abs)})")
                     sys.exit(1)
                 log_file.write(f"[warn] resume failed ({err}); falling back to fresh session\n")
@@ -359,6 +380,7 @@ def main():
 
         if err or result_event is None:
             print(f"[spawn:{role}] error: {err}")
+            write_failure_result(result_path, role, err or "no result event")
             git_snapshot(workspace, f"{role} failed ({os.path.basename(task_file_abs)})")
             sys.exit(1)
 

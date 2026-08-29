@@ -44,6 +44,7 @@ CC_Solver/
 │   ├── orchestrator.md       #   通用 Orchestrator prompt（含模板变量）
 │   ├── agents/               #   各 Agent 定义
 │   │   ├── planner.md
+│   │   ├── planner_deep.md
 │   │   ├── builder.md
 │   │   ├── evaluator.md
 │   │   ├── verifier.md
@@ -60,7 +61,8 @@ CC_Solver/
 │   │   ├── iterative.md
 │   │   ├── debate.md
 │   │   ├── tree_search.md
-│   │   └── adaptive.md
+│   │   ├── adaptive.md
+│   │   └── deep_search.md
 │   └── skills/               #   可调用的 Skill
 │       ├── calculation.md
 │       ├── dimension_check.md
@@ -206,7 +208,7 @@ git diff HEAD~1 solution.md
 ```json
 {
   "pipeline": "standard",              // 当前使用的 pipeline
-  "max_concurrent_problems": 3,        // 最大并行题目数
+  "max_concurrent_problems": 3,        // 最大并行题目数（多题批量模式尚未实现，预留字段）
   "max_disputes": 2,                   // 修订争议协议最大轮数（达上限强制修订）
   "memory_guard": "quarantine",        // 记忆防火墙：quarantine / audit / off
 
@@ -291,7 +293,7 @@ Orchestrator 每完成一个阶段更新一次，续跑时先读它恢复决策�
 
 ## Git 提交约定
 
-`spawn.py` 在每次 spawn sub-agent 前后各做一次 git 快照（`fcntl.flock` 文件锁互斥，多题并行安全），提交消息前缀自动解析自 `debug/.state` 的 `pipeline:` 行：
+`spawn.py` 在每次 spawn sub-agent 前后各做一次 git 快照（`fcntl.flock` 文件锁互斥，同一工作区并行派活安全——如 parallel 的多 Planner、deep_search 的四专家并行），提交消息前缀自动解析自 `debug/.state` 的 `pipeline:` 行：
 
 | 时机 | 提交消息示例 |
 |------|----------|

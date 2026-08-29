@@ -80,6 +80,7 @@ def main():
     hook_cwd = os.path.abspath(data.get("cwd") or os.getcwd())
 
     read_roots = [workspace, os.path.realpath(os.path.join(PROJECT_ROOT, "textbook"))]
+    textbook_root = read_roots[1]
     if role == "orchestrator":
         read_roots.append(os.path.realpath(os.path.join(PROJECT_ROOT, "scripts")))
     write_roots = [workspace]
@@ -122,9 +123,8 @@ def main():
     # ---- Bash：分词扫描所有疑似路径 ----
     if tool == "Bash":
         cmd = tin.get("command", "")
-        for tok in TOKEN_SPLIT.split(cmd):
-            if not tok:
-                continue
+        tokens = [t for t in TOKEN_SPLIT.split(cmd) if t]
+        for tok in tokens:
             base = os.path.basename(tok)
             if base == "claude" or tok.endswith("/claude"):
                 audit(workspace, tool, cmd, "DENY")
@@ -132,6 +132,41 @@ def main():
             # 疑似路径：含 /、以 ~ 开头、含 $HOME
             if "/" in tok or tok.startswith("~") or "$HOME" in tok:
                 check(tok, read_roots, "path in command")
+
+        # textbook 是**只读**根：上面的分词检查只验证路径可达（读视角），
+        # 不区分写方向——`rm -rf textbook/...`、`echo x > textbook/...` 也会通过。
+        # 这里补一层写方向检查（启发式，接受少量误杀；混淆手段仍是已知边界）。
+        def resolves_into(value, root):
+            p = normalize(value)
+            cands = [p] if os.path.isabs(p) else [os.path.join(b, p) for b in (hook_cwd, workspace)]
+            return any(inside(c, [root]) for c in cands)
+
+        tb_tokens = [t for t in tokens if resolves_into(t, textbook_root)]
+        if tb_tokens:
+            # 1) 重定向写入：> / >> 之后紧跟的目标解析进 textbook（排除 >&1 之类）
+            for m in re.finditer(r"(?<![>&|])>{1,2}(?!&)", cmd):
+                rest = cmd[m.end():].lstrip().split(None, 1)
+                if rest and resolves_into(rest[0], textbook_root):
+                    audit(workspace, tool, cmd, "DENY")
+                    deny(f"redirect writes into read-only textbook root: {rest[0]}")
+            bases = {os.path.basename(t) for t in tokens}
+            # 2) 就地修改/毁灭类命令与 textbook 路径共现
+            hit = bases & {"rm", "rmdir", "unlink", "truncate", "chmod", "chown",
+                           "touch", "dd", "ln", "mkdir", "tee", "install", "rsync"}
+            if hit:
+                audit(workspace, tool, cmd, "DENY")
+                deny(f"destructive command {sorted(hit)[0]} combined with read-only textbook path")
+            # 3) sed -i 就地编辑
+            if "sed" in bases and any(t == "--in-place" or t.startswith("-i") for t in tokens):
+                audit(workspace, tool, cmd, "DENY")
+                deny("sed in-place edit combined with read-only textbook path")
+            # 4) cp/mv：最后一个路径参数是目的端——目的端落在 textbook 即写入
+            if bases & {"cp", "mv"}:
+                path_tokens = [t for t in tokens if "/" in t or t.startswith("~")]
+                if path_tokens and resolves_into(path_tokens[-1], textbook_root):
+                    audit(workspace, tool, cmd, "DENY")
+                    deny(f"cp/mv destination inside read-only textbook root: {path_tokens[-1]}")
+
         audit(workspace, tool, cmd, "ALLOW")
         sys.exit(0)
 

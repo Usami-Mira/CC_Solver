@@ -104,7 +104,7 @@ Evaluator 判了 REVISE，但你不认可其中某些意见？你有权逐条回
 
 ```
 HANDOFF
-STATUS: OK | BLOCKED
+STATUS: OK | BLOCKED | FAIL
 OUTPUT: <你产出的文件列表（含 scripts/builder/ 下的关键脚本）>
 SUMMARY: <一两句结论，如最终答案的形式或验证结果>
 ```
@@ -112,5 +112,6 @@ SUMMARY: <一两句结论，如最终答案的形式或验证结果>
 规则：
 - **全文不超过 6 行**，推导细节全部放在输出文件里，不要重复
 - 完成了任务要求的产出文件 → `STATUS: OK`
-- 任务无法完成（如任务文件缺失、依赖缺失）→ `STATUS: BLOCKED`，SUMMARY 说明原因
+- **环境性**原因无法开始/继续（任务文件缺失、依赖缺失、工具不可用）→ `STATUS: BLOCKED`，SUMMARY 说明原因（这是可重试的失败）
+- 已尽力尝试，但**路线本身走不通**（积分算不出、数值不收敛、结果与验收判据硬性冲突且无法修复等）→ `STATUS: FAIL`，SUMMARY 说明卡在哪一步、死成什么样子（这是路线级结论，树类流水线据此把节点记为死端）
 - **争议回击任务**额外加一行：`COUNTS: ACCEPTED=<数> REBUTTED=<数>`

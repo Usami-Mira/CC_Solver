@@ -2,7 +2,7 @@
 
 ## 简介
 
-本项目通过 Claude Code CLI 编排多个 Agent 自动解决物理题目。系统提供 **6 种解题策略（Pipeline）**，适应不同类型的问题：
+本项目通过 Claude Code CLI 编排多个 Agent 自动解决物理题目。系统提供 **7 种解题策略（Pipeline）**，适应不同类型的问题：
 
 | Pipeline | 策略 | 适用场景 |
 |----------|------|----------|
@@ -10,8 +10,9 @@
 | **Parallel** | 3×Planner 并行 → Meta-Planner 选优 → Builder → Evaluator | 多解法探索，需要最优方案 |
 | **Iterative** | Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代 | 开放性问题，需要逐步逼近 |
 | **Debate** | 3×专家（理论/计算/实验）辩论 → Secretary 综合 → Builder → Evaluator | 复杂问题，需要多角度分析 |
-| **Tree Search** | Planner 决策 → Ephemeral Builder-Evaluator 验证 → Verifier 审查方案 → Final Builder → Evaluator | 探索性问题，需要试错和回溯 |
+| **Tree Search** | Planner 展开搜索树（≥2 分支 + 验收判据）→ Ephemeral Builder-Evaluator 逐支验证 → best-first 选择 + 死端回溯 → Verifier 审查方案 → Final Builder → Evaluator | 多条结构不同路线竞争、易撞死端的题 |
 | **Adaptive** | Planner 自适应决策 → Ephemeral Builder-Evaluator 验证 → 动态调整 → Verifier 审查方案 → Final Builder → Evaluator | 需要逐步验证和策略调整的问题 |
+| **Deep Search** | 审题找 crux → 发散生成 ≥3 个结构不同方向（验收判据 + 预测撞墙点）→ best-first 深挖 + 回溯 → **多专家辩论共识**（可动议临时 Builder/Evaluator 解决分歧，Secretary 记录共识）→ Verifier → Final Builder → Evaluator（集大成，Planner 用解除"一种方法"限制的专用版） | **难题默认**：crux 不明、易撞死端、方案须经多视角碰撞 |
 
 每道题支持断点续传：状态文件 + `claude --resume` 会话续接双重保障，中断后可自动从上次进度继续。系统使用 Git 自动追踪解题过程的完整演变（逐阶段快照在代码层自动完成），支持查看每个阶段的变更历史和版本对比。
 
@@ -67,7 +68,7 @@ problems/
       problem.md
 ```
 
-多题只需指定父目录，系统会自动识别并依次处理。
+多题只需指定父目录，系统会自动识别并依次处理。**⚠️ 多题批量模式目前尚未实现（规划中）**：当前 `run.py` 一次只处理一个工作区，请对每道题单独运行；`max_concurrent_problems` 为预留配置。
 
 ## 配置
 
@@ -103,6 +104,23 @@ problems/
         "Builder": "qwen3.6-plus",
         "Evaluator": "qwen3.6-plus"
       }
+    },
+
+    "deep_search": {
+      "model": "qwen3.6-plus",
+      "timeout_seconds": 864000,
+      "max_iterations": 20,
+      "max_revisions": 8,
+      "max_rounds": 3,
+      "max_motions": 6,
+      "ephemeral_timeout": 6000,
+      "deep_timeout": 18000,
+      "agent_models": {
+        "Planner": "qwen3.6-plus",
+        "Verifier": "qwen3.6-plus",
+        "Builder": "qwen3.6-plus",
+        "Evaluator": "qwen3.6-plus"
+      }
     }
   }
 }
@@ -112,8 +130,8 @@ problems/
 
 | 字段 | 说明 |
 |------|------|
-| `pipeline` | 当前使用的解题策略：`standard` / `parallel` / `iterative` / `debate` / `tree_search` / `adaptive` |
-| `max_concurrent_problems` | 多题场景下同时并行处理的最大题目数，默认 3 |
+| `pipeline` | 当前使用的解题策略：`standard` / `parallel` / `iterative` / `debate` / `tree_search` / `adaptive` / `deep_search` |
+| `max_concurrent_problems` | 多题批量模式（**尚未实现**）的最大并行题目数，预留字段，默认 3 |
 | `max_disputes` | 修订争议协议最大轮数：REVISE 时 Builder 回击 → Evaluator 复审，达上限后强制修订（争议点单独标注），默认 2 |
 | `memory_guard` | 记忆防火墙模式：`quarantine`（运行后 git 快照隔离，重置本次运行对记忆目录的改动）/ `audit`（只记录不重置）/ `off` |
 
@@ -124,10 +142,12 @@ problems/
 | `model` | 所有 | 默认使用的模型名 |
 | `timeout_seconds` | 所有 | 单次调用的最大超时时间（秒） |
 | `max_revisions` | 所有 | Builder-Evaluator 循环的最大修正次数 |
-| `max_iterations` | iterative, tree_search, adaptive | 迭代循环的最大次数 |
-| `max_rounds` | debate | 辩论轮数 |
+| `max_iterations` | iterative, tree_search, adaptive, deep_search | 迭代循环的最大次数 |
+| `max_rounds` | debate, deep_search | 辩论轮数 |
+| `max_motions` | deep_search | 辩论期间动议（临时 Builder/Evaluator）总数上限 |
 | `num_planners` | parallel | 并行 Planner 数量 |
-| `ephemeral_timeout` | tree_search, adaptive | Ephemeral Builder/Evaluator 超时（秒） |
+| `ephemeral_timeout` | tree_search, adaptive, deep_search | 临时 Builder/Evaluator（deep_search 还包括动议执行、辩论轮次记录）超时（秒） |
+| `deep_timeout` | deep_search | Planner 深度思考、辩论专家发言、共识定稿的超时（秒） |
 | `agent_models` | 所有 | 为不同 Agent 配置不同模型 |
 
 ## 运行
@@ -136,25 +156,27 @@ problems/
 # 处理单道题（使用 config.json 中的 pipeline）
 python3 scripts/run.py problems/example_single
 
-# 处理一批题（自动识别多题模式）
-python3 scripts/run.py problems/example_multiple
+# 处理一批题（自动识别多题模式）—— ⚠️ 尚未实现，当前请对每道题单独运行
+# python3 scripts/run.py problems/example_multiple
 
 # 指定 pipeline（覆盖 config.json）
 python3 scripts/run.py problems/example_single --pipeline parallel
 python3 scripts/run.py problems/example_single --pipeline debate
 python3 scripts/run.py problems/example_single --pipeline tree_search
 python3 scripts/run.py problems/example_single --pipeline adaptive
+python3 scripts/run.py problems/example_single --pipeline deep_search
 ```
 
 **Pipeline 选择建议：**
 
 | 题目类型 | 推荐 Pipeline | 理由 |
 |----------|--------------|------|
+| 难题/前沿问题（默认） | `deep_search` | 审题找 crux + ≥3 结构不同方向发散 + 深挖回溯 + 多专家辩论共识，集所有结构之大成 |
 | 常规计算题 | `standard` | 简单直接，资源消耗最少 |
 | 多解法题目 | `parallel` | 并行探索多种思路，选最优 |
 | 开放性探究 | `iterative` | 假设-验证循环，逐步逼近 |
 | 复杂综合题 | `debate` | 多角度分析，专家辩论收敛 |
-| 探索性问题 | `tree_search` | 试错+回溯，灵活决策 |
+| 易撞死端的探索性问题 | `tree_search` | 分支展开 + best-first 选择 + 死端回溯，一条路死了换路走 |
 | 需要验证的问题 | `adaptive` | 逐步验证，动态调整策略 |
 
 ## 运行测试
@@ -189,7 +211,7 @@ python3 textbook/test_smart_chunk.py -v
 | `review.md` | 审查结果，首行为 `PASS` 或 `REVISE` |
 | `final_summary.md` | 最终汇总：执行统计 + 完整答案（**主要阅读文件**） |
 
-多题场景下，父目录还会生成 `batch_summary.md`，汇总所有子题的状态和答案摘要。
+多题批量模式（规划中，尚未实现）会在父目录生成 `batch_summary.md`，汇总所有子题的状态和答案摘要。
 
 ### 查看解题过程历史
 
@@ -260,6 +282,7 @@ git diff HEAD~2 solution.md
 │   ├── orchestrator.md      # 通用 Orchestrator system prompt
 │   ├── agents/              # 各 Agent 定义
 │   │   ├── planner.md
+│   │   ├── planner_deep.md
 │   │   ├── builder.md
 │   │   ├── evaluator.md
 │   │   ├── verifier.md
@@ -276,7 +299,8 @@ git diff HEAD~2 solution.md
 │   │   ├── iterative.md
 │   │   ├── debate.md
 │   │   ├── tree_search.md
-│   │   └── adaptive.md
+│   │   ├── adaptive.md
+│   │   └── deep_search.md
 │   └── skills/              # Skill 定义
 │       ├── calculation.md
 │       ├── dimension_check.md
@@ -318,12 +342,14 @@ git diff HEAD~2 solution.md
 ```
 Orchestrator
   │
-  ├── 滑动窗口并行（最多 max_concurrent_problems 题同时运行）
+  ├── 【规划中，尚未实现】滑动窗口并行（最多 max_concurrent_problems 题同时运行）
   │   初始启动 3 题，任一题完成后立即从队列补入下一题
   │   例：1,2,3 同时跑 → 1 完成 → 4 补入 → 2,3,4 同时跑 → 3 完成 → 5 补入 → 2,4,5 同时跑 → ...
   │
-  └── 全部完成后生成 batch_summary.md
+  └── 【规划中，尚未实现】全部完成后生成 batch_summary.md
 ```
+
+目前 `run.py` 一次编排一个工作区（一道题）；上图为预留的批量模式设计。
 
 单道题内的阶段顺序：
 
@@ -364,7 +390,7 @@ Builder 执行最终推导时，会按 plan / final_plan 的步骤编号逐步�
 
 **提交时机（代码层自动完成，不依赖模型自觉）：**
 
-`spawn.py` 在每次 spawn sub-agent 前后各做一次 git 快照（文件锁互斥，多题并行安全），提交消息前缀 `<pipeline>:` 自动解析自 `debug/.state`：
+`spawn.py` 在每次 spawn sub-agent 前后各做一次 git 快照（文件锁互斥，同一工作区并行派活安全），提交消息前缀 `<pipeline>:` 自动解析自 `debug/.state`：
 
 | 时机 | 提交消息示例 |
 |------|----------|

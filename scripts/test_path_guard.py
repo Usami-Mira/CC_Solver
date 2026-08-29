@@ -99,6 +99,23 @@ with tempfile.TemporaryDirectory() as td:
                  role="orchestrator", cwd=ROOT)
     check("orchestrator relative tasks/ path resolved against workspace", rc == 0, f"rc={rc}")
 
+    print("-- Bash write-direction into read-only textbook --")
+    TB = ROOT / "textbook"
+    rc, _ = call("Bash", {"command": f"cat {TB / 'merged' / 'chunks_translated.json'} | head -5"}, ws)
+    check("Bash read textbook allowed", rc == 0, f"rc={rc}")
+    rc, _ = call("Bash", {"command": f"cp {TB / 'merged' / 'chunks_translated.json'} {ws / 'copy.json'}"}, ws)
+    check("Bash cp FROM textbook allowed", rc == 0, f"rc={rc}")
+    rc, err = call("Bash", {"command": f"echo garbage > {TB / 'merged' / 'chunks_translated.json'}"}, ws)
+    check("Bash redirect write into textbook denied", rc == 2, f"rc={rc} {err}")
+    rc, err = call("Bash", {"command": f"rm -rf {TB / 'weaviate_data'}"}, ws)
+    check("Bash rm into textbook denied", rc == 2, f"rc={rc} {err}")
+    rc, err = call("Bash", {"command": f"cp {ws / 'problem.md'} {TB / 'merged' / 'evil.md'}"}, ws)
+    check("Bash cp INTO textbook denied", rc == 2, f"rc={rc} {err}")
+    rc, err = call("Bash", {"command": f"sed -i 's/a/b/' {TB / 'merged' / 'chunks_translated.json'}"}, ws)
+    check("Bash sed -i into textbook denied", rc == 2, f"rc={rc} {err}")
+    rc, _ = call("Bash", {"command": "python3 -c 'x=1' 2>&1"}, ws)
+    check("Bash 2>&1 not treated as redirect", rc == 0, f"rc={rc}")
+
     print("-- audit log --")
     audit_log = ws / "debug" / ".path_guard.log"
     content = audit_log.read_text() if audit_log.exists() else ""

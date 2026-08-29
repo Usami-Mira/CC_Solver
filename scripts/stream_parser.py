@@ -16,6 +16,15 @@ def parse_stream_event(line):
     except (json.JSONDecodeError, TypeError):
         return ("other", None, None)
 
+    try:
+        return _parse_event(event)
+    except Exception:
+        # 任何格式化异常（如网关返回 total_cost_usd: null）都不得杀死泵送线程：
+        # 泵线程在 result 事件上崩溃会导致"成功的会话被误报为无结果"。
+        return ("other", None, event)
+
+
+def _parse_event(event):
     etype = event.get("type", "")
 
     if etype == "system" and event.get("subtype") == "init":
@@ -51,9 +60,15 @@ def parse_stream_event(line):
         return ("tool_result", str(content)[:300], event)
 
     elif etype == "result":
+        # 网关/代理可能把数值字段返回为 null —— 强制转 float，
+        # 绝不让格式化异常冒泡到泵送线程
+        try:
+            cost = float(event.get("total_cost_usd") or 0)
+        except (TypeError, ValueError):
+            cost = 0.0
         summary = (f"duration={event.get('duration_ms', 0)}ms "
                    f"turns={event.get('num_turns', 0)} "
-                   f"cost=${event.get('total_cost_usd', 0):.4f}")
+                   f"cost=${cost:.4f}")
         return ("result", summary, event)
 
     return ("other", None, event)

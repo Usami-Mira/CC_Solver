@@ -33,12 +33,14 @@ MAX_ITERATIONS = 10
 MAX_ROUNDS = 3
 NUM_PLANNERS = 3
 EPHEMERAL_TIMEOUT = 300
+DEEP_TIMEOUT = 1800
+MAX_MOTIONS = 6
 
 
 def apply_pipeline_config(name):
     """按 pipeline 名设置模块级配置变量。"""
     global PIPELINE, PIPELINE_CONFIG, MODEL, TIMEOUT, MAX_REVISIONS, AGENT_MODELS
-    global MAX_ITERATIONS, MAX_ROUNDS, NUM_PLANNERS, EPHEMERAL_TIMEOUT
+    global MAX_ITERATIONS, MAX_ROUNDS, NUM_PLANNERS, EPHEMERAL_TIMEOUT, DEEP_TIMEOUT, MAX_MOTIONS
     PIPELINE = name
     PIPELINE_CONFIG = CONFIG.get("configs", {}).get(name, {})
     MODEL = PIPELINE_CONFIG.get("model", "sonnet")
@@ -50,6 +52,8 @@ def apply_pipeline_config(name):
     NUM_PLANNERS = PIPELINE_CONFIG.get("num_planners", 3)
     EPHEMERAL_TIMEOUT = PIPELINE_CONFIG.get("ephemeral_timeout",
                                             PIPELINE_CONFIG.get("calculation_timeout", 300))
+    DEEP_TIMEOUT = PIPELINE_CONFIG.get("deep_timeout", 1800)
+    MAX_MOTIONS = PIPELINE_CONFIG.get("max_motions", 6)
 
 
 apply_pipeline_config(PIPELINE)
@@ -192,7 +196,7 @@ def kill_process_group(proc):
 
 
 VERDICT_ICON = {"PASS": "✅", "FAIL": "❌", "REVISE": "🔁", "SOUND": "🔍",
-                "CONSENSUS": "🤝", "DISPUTED": "⚔️"}
+                "CONSENSUS": "🤝", "DISPUTED": "⚔️", "DONE": "🏁", "BRANCH": "🌿"}
 
 
 def parse_state_file(path):
@@ -327,9 +331,34 @@ def assemble_orchestrator_prompt(workspace):
             "builder": read_agent("builder"),
             "evaluator": read_agent("evaluator"),
         }
-    elif PIPELINE in ["tree_search", "adaptive"]:
+    elif PIPELINE == "tree_search":
+        # Planner 用解除"一种方法"限制的深度规划版（agents/planner_deep.md）：
+        # 树搜索要求根展开生成 ≥2 个结构不同分支、节点以 BRANCH 汇报，
+        # 基础 planner.md 的"一种方法"纪律与此直接冲突。
+        agents_dict = {
+            "planner": read_agent("planner_deep"),
+            "verifier": read_agent("verifier"),
+            "builder": read_agent("builder"),
+            "evaluator": read_agent("evaluator"),
+        }
+    elif PIPELINE == "adaptive":
         agents_dict = {
             "planner": read_agent("planner"),
+            "verifier": read_agent("verifier"),
+            "builder": read_agent("builder"),
+            "evaluator": read_agent("evaluator"),
+        }
+    elif PIPELINE == "deep_search":
+        # Planner 用解除"一种方法"限制的深度搜索专用版（agents/planner_deep.md）；
+        # spawn 时 prompt_file 传 agents/planner_deep，角色仍是 Planner。
+        # 阶段 3 辩论共识复用 Debate 流水线的专家与书记角色。
+        agents_dict = {
+            "planner": read_agent("planner_deep"),
+            "theorist": read_agent("theorist"),
+            "computationalist": read_agent("computationalist"),
+            "experimentalist": read_agent("experimentalist"),
+            "critic": read_agent("critic"),
+            "secretary": read_agent("secretary"),
             "verifier": read_agent("verifier"),
             "builder": read_agent("builder"),
             "evaluator": read_agent("evaluator"),
@@ -364,6 +393,8 @@ def assemble_orchestrator_prompt(workspace):
     prompt = prompt.replace("{max_rounds}", str(MAX_ROUNDS))
     prompt = prompt.replace("{num_planners}", str(NUM_PLANNERS))
     prompt = prompt.replace("{ephemeral_timeout}", str(EPHEMERAL_TIMEOUT))
+    prompt = prompt.replace("{deep_timeout}", str(DEEP_TIMEOUT))
+    prompt = prompt.replace("{max_motions}", str(MAX_MOTIONS))
     prompt = prompt.replace("{max_disputes}", str(MAX_DISPUTES))
 
     return prompt
@@ -376,7 +407,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Physics problem solver with multiple pipelines")
     parser.add_argument("workspace", nargs="?", default="problems/001", help="Problem workspace directory")
-    parser.add_argument("--pipeline", choices=["standard", "parallel", "iterative", "debate", "tree_search", "adaptive"],
+    parser.add_argument("--pipeline", choices=["standard", "parallel", "iterative", "debate", "tree_search", "adaptive", "deep_search"],
                        help="Override pipeline type from config.json")
     args = parser.parse_args()
 
@@ -385,6 +416,9 @@ def main():
     # Override pipeline if specified on command line
     if args.pipeline:
         apply_pipeline_config(args.pipeline)
+
+    # 传给 spawn.py：它需要从同一 pipeline 配置读模型/超时（顶层 config 可能是别的流水线）
+    os.environ["SOLVER_PIPELINE"] = PIPELINE
 
     # Copy RAG query script into workspace so agents can run it locally
     query_script = ROOT / "textbook" / "rag_build" / "query_rag.py"

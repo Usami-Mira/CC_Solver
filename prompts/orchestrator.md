@@ -88,11 +88,11 @@ OUTPUT: <产出文件>
 SUMMARY: <一两句摘要>
 ```
 
-- **Planner** 的 `STATUS`：`VERIFY`（继续验证，`NEXT_TASK` 给出下一个任务文件）/ `DONE`（已写 `final_plan.md`，进入最终阶段）/ `FAIL`
-- **Builder** 的 `STATUS`：`OK` / `BLOCKED`；**争议回击任务**额外含 `COUNTS: ACCEPTED=<x> REBUTTED=<y>`
+- **Planner** 的 `STATUS`：`OK`（普通规划完成）/ `VERIFY`（继续验证，`NEXT_TASK` 给出下一个任务文件）/ `DONE`（已写 `final_plan.md`，进入最终阶段）/ `FAIL`；tree_search / deep_search 模式下为 `BRANCH`（生成了分支验证任务，附 `PARENT` 与 `NEXT_TASKS`）/ `DONE` / `FAIL`
+- **Builder** 的 `STATUS`：`OK` / `BLOCKED`（环境性失败，可重试）/ `FAIL`（已尽力但路线走不通，树类流水线记节点为 DEAD）；**争议回击任务**额外含 `COUNTS: ACCEPTED=<x> REBUTTED=<y>`
 - **Evaluator** 的 `VERDICT`：`PASS` / `FAIL` / `REVISE`（迭代评估模式下为 `PASS` / `PARTIAL` / `DEAD_END`，以任务文件为准）；**争议复审任务**为 `CONSENSUS` / `DISPUTED`，并含 `COUNTS: WITHDRAWN=<x> MAINTAINED=<y>`
 - **Verifier** 的 `VERDICT`：`SOUND`（方案可进入 Final Builder）/ `REVISE`（Planner 按 `verification_plan.md` 的问题清单修订；修订上限 1 轮，第二次裁决无论是什么都放行，见 Pipeline 配置）
-- **其他角色**（Explorer / Meta_Planner / Theorist / Computationalist / Experimentalist / Critic / Secretary）的 `STATUS`：`OK` / `BLOCKED`。Secretary 的 `OUTPUT` 用于区分每轮记录与最终 Plan；Critic 的 `SUMMARY` 含 Critical/Major 条数，用于判断辩论是否收敛
+- **其他角色**（Explorer / Meta-Planner / Theorist / Computationalist / Experimentalist / Critic / Secretary）的 `STATUS`：`OK` / `BLOCKED`。Secretary 的 `OUTPUT` 用于区分每轮记录与最终 Plan；Critic 的 `SUMMARY` 含 Critical/Major 条数，用于判断辩论是否收敛
 
 **决策只凭 `.result` 的这几行，不要为"了解更多"去读内容文件。**摘要不够用时，派下一个 Agent 去处理，而不是你自己去读原文。
 

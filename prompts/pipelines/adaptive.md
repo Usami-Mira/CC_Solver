@@ -68,7 +68,7 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
 1. 更新 `{workspace}/strategy.md`（当前理解 + 下一步计划）
 2. 若最新一轮验证的结论应保留，将其要点追加到 `{workspace}/calculations_history.md`
 3. 二选一：
-   a. 还需要验证 → 写 `{workspace}/tasks/task_{id}.md`（完整验证任务，含所有物理细节）
+   a. 还需要验证 → 写 `{workspace}/tasks/task_{id}.md`（完整验证任务，含所有物理细节；任务中注明结果写入 `{workspace}/calculation_{id}.md`、禁止写 `solution.md`）
    b. 理解已充分 → 写 `{workspace}/final_plan.md`（完整求解方案）
 ```
 
@@ -89,7 +89,7 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
 
 请审查 `{workspace}/calculation_{id}.md`（参考 `{workspace}/problem.md`，并审计 `{workspace}/scripts/builder/` 下的代码——只读，不运行）。
 你的验证脚本放 `{workspace}/scripts/evaluator/task_eval_{id}/`（从 problem.md 独立转录）。
-将结果写入 `{workspace}/verification_{id}.md`。输出第一行必须是 PASS 或 FAIL。
+将结果写入 `{workspace}/verification_{id}.md`。**输出第一行只写 `PASS` 或 `FAIL` 这一个词**（标题等一律从第二行开始）。
 ```
 
 ### 根据 Evaluator 的 HANDOFF 路由
@@ -153,7 +153,7 @@ REVISE 时：**先执行修订争议协议**（见通用编排器的"修订争�
 
 ### Builder（临时模式）
 - 基础版本：`agents/builder.md`
-- **差分：** 只验证小结论；输出 `calculation_{id}.md`；超时 `{ephemeral_timeout}` 秒；最终消息为 HANDOFF 格式
+- **差分：** 只验证小结论；结果必须写入 `calculation_{id}.md`，**禁止写 `solution.md`**（那是 Final Builder 的文件）；超时 `{ephemeral_timeout}` 秒；最终消息为 HANDOFF 格式
 
 ### Evaluator（临时模式）
 - 基础版本：`agents/evaluator.md`
@@ -196,10 +196,11 @@ next: Verifier task_verifier.md
 
 | 特性 | Tree Search | Adaptive |
 |------|-------------|----------|
-| 决策方式 | 树状探索 + 回溯 | 线性迭代 + 自适应调整 |
-| 状态管理 | 复杂树结构 | 简单历史记录 |
-| 适用场景 | 多路径探索 | 单路径深入验证 |
-| Planner 职责 | 生成探索树 | 自适应决策 + 动态调整 |
+| 决策方式 | 分支展开（≥2 个结构不同分支）+ best-first 选择 + 死端回溯 | 线性迭代 + 自适应调整 |
+| 状态管理 | `debug/.state` 树表（多前沿节点并存，纯元数据） | 简单历史记录（单路径） |
+| 死端处理 | 验收判据 + Evaluator 裁决 → 换分支 | Planner 看到 FAIL 后自行调整 |
+| 适用场景 | 多条结构不同路线竞争、易撞死端的题 | 单路径深入验证 |
+| Planner 职责 | 生成/展开分支（含验收判据）、判定 DONE | 自适应决策 + 动态调整 |
 
 ## 参数
 

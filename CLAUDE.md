@@ -47,11 +47,11 @@ cd textbook && rag_env/bin/python rag_build/query_rag.py "your query"
 ├── prompts/                               ← Agent system prompts
 │   ├── orchestrator.md                    ← 通用 Orchestrator prompt
 │   ├── agents/                            ← 各 Agent 定义
-│   │   ├── planner.md, builder.md, evaluator.md, verifier.md
+│   │   ├── planner.md, planner_deep.md, builder.md, evaluator.md, verifier.md
 │   │   ├── meta_planner.md, explorer.md, secretary.md
 │   │   └── theorist.md, computationalist.md, experimentalist.md, critic.md
 │   ├── pipelines/                         ← 各 Pipeline 配置
-│   │   └── standard.md, parallel.md, iterative.md, debate.md, tree_search.md, adaptive.md
+│   │   └── standard.md, parallel.md, iterative.md, debate.md, tree_search.md, adaptive.md, deep_search.md
 │   └── skills/                            ← Skill definitions
 ├── problems/                              ← Problem workspaces (e.g., CPhO42j/)
 └── textbook/                              ← RAG knowledge base (SEPARATE WORKING DIR)
@@ -106,14 +106,15 @@ export HF_HUB_DISABLE_XET=1
 
 ## Agent Workflow
 
-系统支持 6 种 Pipeline（在 `config.json` 中配置）：
+系统支持 7 种 Pipeline（在 `config.json` 中配置）：
 
 - **Standard**: Planner → Builder → Evaluator → (REVISE 循环)
 - **Parallel**: N×Planner 并行 → Meta-Planner → Builder → Evaluator
 - **Iterative**: Explorer → Builder → Evaluator → 循环迭代
 - **Debate**: 专家分析 → 辩论循环 → Secretary 写 Plan → Builder → Evaluator
-- **Tree Search**: Planner 决策 → Ephemeral Builder-Evaluator → Verifier 审查方案 → Final Builder → Evaluator
+- **Tree Search**: Planner 展开搜索树（≥2 个结构不同分支，各含机器可检验收判据）→ Ephemeral Builder-Evaluator 逐支验证 → best-first 选择 + 死端回溯 → Verifier 审查方案 → Final Builder → Evaluator
 - **Adaptive**: Planner 自适应决策 → Ephemeral Builder-Evaluator → 动态调整 → Verifier 审查方案 → Final Builder → Evaluator
+- **Deep Search**: 审题找 crux → 发散生成 ≥3 个结构不同方向（各含验收判据 + 预测撞墙点）→ best-first 深挖 + 死端回溯 → 多专家辩论共识（思想碰撞提出创新点，可动议临时 Builder/Evaluator 解决分歧，Secretary 记录共识）→ Verifier 审查方案 → Final Builder → Evaluator。Planner 用专用版 `agents/planner_deep.md`（解除"一种方法"限制）；集其余结构之大成，难题默认
 
 Orchestrator 负责编排，通过 `scripts/spawn.py` 创建 sub-agent（每次 spawn 前后自动 git 快照）。
 
