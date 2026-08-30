@@ -107,33 +107,43 @@ class TestDescribeBash(unittest.TestCase):
     def test_python_script(self):
         self.assertEqual(
             spawn.describe_bash("python3 scripts/builder/task_a1/run.py"),
-            "运行脚本 run.py")
+            "script 执行：run.py")
         self.assertEqual(
             spawn.describe_bash("python3 check.py && echo DONE"),
-            "运行脚本 check.py")
+            "script 执行：check.py")
         self.assertEqual(
             spawn.describe_bash("cd /abs/ws && python3 calc.py"),
-            "运行脚本 calc.py")
+            "script 执行：calc.py")
 
     def test_rag_query(self):
         cmd = ('cd /root/textbook && rag_env/bin/python '
                'rag_build/query_rag.py "查询"')
-        self.assertEqual(spawn.describe_bash(cmd), "查询知识库")
+        self.assertEqual(spawn.describe_bash(cmd), "script 执行：查询知识库")
 
     def test_inline_python(self):
         self.assertEqual(spawn.describe_bash('python3 -c "print(1)"'),
-                         "运行内联 Python")
+                         "script 执行：内联 Python")
 
     def test_bash_script(self):
         self.assertEqual(spawn.describe_bash("bash setup.sh"),
-                         "运行脚本 setup.sh")
+                         "script 执行：setup.sh")
 
     def test_executable(self):
-        self.assertEqual(spawn.describe_bash("./solver --fast"), "执行 solver")
+        self.assertEqual(spawn.describe_bash("./solver --fast"),
+                         "script 执行：solver")
 
-    def test_fallback(self):
-        self.assertTrue(
-            spawn.describe_bash("2>&1 weird | stuff").startswith("执行命令"))
+    def test_timeout_wrapper_stripped(self):
+        """timeout/nohup 等前缀包装器不得伪装成可执行文件上报。"""
+        self.assertEqual(
+            spawn.describe_bash("timeout 120 python3 scripts/x/run.py 2>&1"),
+            "script 执行：run.py")
+        self.assertEqual(
+            spawn.describe_bash("cd /abs/ws && timeout 900 python3 calc.py"),
+            "script 执行：calc.py")
+        self.assertIsNone(spawn.describe_bash("timeout 60 cat x.md"))
+
+    def test_untranslatable_suppressed(self):
+        self.assertIsNone(spawn.describe_bash("2>&1 weird | stuff"))
 
 
 class TestAgentEventLine(unittest.TestCase):
@@ -143,7 +153,7 @@ class TestAgentEventLine(unittest.TestCase):
         line = spawn.agent_event_line("Builder", "task_a1",
                                       "Bash: python3 scripts/builder/task_a1/run.py")
         self.assertIn("[Builder·task_a1]", line)
-        self.assertIn("运行脚本 run.py", line)
+        self.assertIn("script 执行：run.py", line)
 
     def test_bash_housekeeping_silenced(self):
         for cmd in ("ls tasks/", "cat debug/.state", "head -1 review.md",
@@ -187,7 +197,7 @@ class TestAgentEventLine(unittest.TestCase):
                                       "Bash: python3 run.py")
         color = spawn.branch_color("task_a1")
         self.assertTrue(line.startswith(f"\033[1;{color}m[Builder·task_a1]"))
-        self.assertTrue(line.endswith("\033[0m 运行脚本 run.py"))
+        self.assertTrue(line.endswith("\033[0m script 执行：run.py"))
 
     def test_branch_falls_back_to_role(self):
         line = spawn.agent_event_line("Critic", "", "Bash: python3 run.py")

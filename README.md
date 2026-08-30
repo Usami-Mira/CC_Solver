@@ -298,7 +298,7 @@ git diff HEAD~2 solution.md
 | `debug/.orchestrator.log` | Orchestrator 流式日志 |
 | `debug/.errors.log` | 运行期错误记录 |
 | `debug/.memory_audit` | 记忆防火墙审计日志（运行前后记忆目录的 git 快照对比） |
-| `<工作区>/console.log` | 运行活动实时镜像：Orchestrator 的派活事件与 sub-Agent 的关键动作（文字化后的"运行脚本 …"等），`run.py` 与 `spawn.py` 共同追加，方便不进终端也能随时查看进展 |
+| `<工作区>/console.log` | 运行活动实时镜像：Orchestrator 的派活事件与 sub-Agent 的关键动作（文字化后的 "script 执行：…"、"写脚本 …" 等），`run.py` 与 `spawn.py` 共同追加，方便不进终端也能随时查看进展 |
 
 ## 注意事项
 

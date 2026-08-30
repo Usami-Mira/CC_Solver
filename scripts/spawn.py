@@ -64,13 +64,32 @@ HOUSEKEEPING_RE = re.compile(
     r"|export|set|read|basename|dirname|realpath|stat|file|md5sum|sha256sum"
     r"|tar|zip|unzip)\b")
 
+# 命令前缀包装器（timeout 120 python3 x.py 是 Agent 跑脚本的常态）——
+# 分类前先剥掉，否则 "timeout" 会被误当成可执行文件上报
+WRAPPER_RE = re.compile(
+    r"^(?:sudo\s+)?(?:timeout\s+\S+|time|nohup|nice(?:\s+-n\s+\S+)?"
+    r"|stdbuf\s+\S+|env(?:\s+\w+=\S+)*)\s+")
+
+
+def _strip_wrappers(seg):
+    while True:
+        s = WRAPPER_RE.sub("", seg, count=1)
+        if s == seg:
+            return s
+        seg = s
+
 
 def describe_bash(cmd):
     """Bash 命令 → 人类可读的文字描述。返回 None 表示该命令不上屏（家务命令）。
 
-    在 && / || / ; 链上**从后往前**找第一个非家务段作为主动作：
-    "cd x && python3 y.py" → 运行脚本 y.py；"python3 x.py && echo DONE"
-    → 运行脚本 x.py；"for i in ...; do sleep 15; done" → 全段家务 → None。
+    在 && / || / ; 链上**从后往前**找第一个非家务段作为主动作（链尾常是
+    echo DONE 之类家务）；主动作段先剥掉 timeout/nohup/env 等前缀包装器
+    再分类。脚本执行统一为 "script 执行：<描述>" 模板（与"失败：…"等
+    全角冒号行文一致）：
+    "timeout 120 python3 x.py" → script 执行：x.py；
+    "python3 x.py && echo DONE" → script 执行：x.py；
+    "for i in ...; do sleep 15; done" → 全段家务 → None。
+    无法翻译的杂项命令不上屏（宁缺毋滥）。
     """
     if not cmd or not cmd.strip():
         return None
@@ -79,7 +98,7 @@ def describe_bash(cmd):
     segs = re.split(r"\s*(?:&&|\|\||;)\s*", cmd.strip())
     last = ""
     for seg in reversed(segs):
-        seg = seg.strip()
+        seg = _strip_wrappers(seg.strip())
         if seg and not HOUSEKEEPING_RE.match(seg) and not re.match(r"^[\[\(!]", seg):
             last = seg
             break
@@ -89,18 +108,18 @@ def describe_bash(cmd):
     if m:
         arg = m.group(1)
         if arg.startswith("-"):          # python3 -c / python3 -
-            return "运行内联 Python"
+            return "script 执行：内联 Python"
         script = os.path.basename(arg)
         if "query_rag" in script:
-            return "查询知识库"
-        return f"运行脚本 {script}"
+            return "script 执行：查询知识库"
+        return f"script 执行：{script}"
     words = last.split()
     if words and words[0] in ("bash", "sh", "source") and len(words) > 1:
-        return f"运行脚本 {os.path.basename(words[1])}"
+        return f"script 执行：{os.path.basename(words[1])}"
     head = words[0] if words else ""
     if re.fullmatch(r"[\w./-]+", head):
-        return f"执行 {os.path.basename(head)}"
-    return f"执行命令 {last[:50]}"
+        return f"script 执行：{os.path.basename(head)}"
+    return None
 
 
 def append_console(feed, text):

@@ -23,39 +23,25 @@ input/
 # secretary 是 Agent 角色文件，不是敏感信息
 !prompts/agents/secretary.md
 
-# === textbook/ 内的数据文件（不跟踪） ===
+# === textbook/ 中间文件不提交（只提交辅助脚本与最终成果；
+#     RAG 数据以 remote 为准，本地运行期变动不覆盖、不入库） ===
 
 # 原始 PDF
 textbook/*.pdf
 
-# OCR 输出（MinerU）
-textbook/em_output/
-textbook/mec_output/
-textbook/opt_output/
-textbook/thrm_output/
-textbook/fix_output/
+# OCR 输出（MinerU 等，所有 *_output 目录）
+textbook/*_output/
 
-# 合并后的 Markdown 和图片
-textbook/merged/*.md
-textbook/merged/images/
-textbook/merged/chunks.json
-textbook/merged/chunks_translated.json
-textbook/merged/translation_cache/
-
-# 章节总结与习题答案（个人文件，不提交）
-textbook/merged/by_chapter/*/summary.md
-textbook/merged/by_chapter/*/ans_c*.md
-
-# 提取的教材内容（含原文，不提交）
-textbook/merged/examples.json
-textbook/merged/exercises.json
-textbook/merged/pure_content.json
-textbook/merged/chunked_examples.json
-textbook/merged/chunked_pure_content.json
-textbook/merged/chunks_final.json
+# 合并/分块/翻译/分章的中间产物
+textbook/merged/
+textbook/merged_new/
+textbook/by_chapter/
 
 # 图片上下文数据
 textbook/image_context.json
+
+# 教材处理流水线的状态文件
+textbook/.state
 
 # 嵌入模型（bge-m3，~2.3GB，由 setup.sh 自动下载）
 textbook/models/
@@ -64,7 +50,8 @@ textbook/models/
 textbook/rag_env/
 textbook/venv/
 
-# Weaviate 本地数据
+# Weaviate 本地数据（向量库，运行期会被改写）
+textbook/weaviate_data/
 textbook/.local/
 
 # Python 缓存
