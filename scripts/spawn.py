@@ -122,6 +122,18 @@ def describe_bash(cmd):
     return None
 
 
+def heartbeat_text(summary):
+    """.progress 心跳文字：与上屏行同一套文字化规则，不把原始命令泄漏进
+    进度播报（监督者 ticker 与状态栏会原样引用它）。"""
+    if summary.startswith("Bash: "):
+        cmd = summary[6:].splitlines()[0][:150] if summary[6:] else ""
+        return describe_bash(cmd) or "执行命令"
+    if summary.startswith(("Write: ", "Edit: ")):
+        base = os.path.basename(summary.split(": ", 1)[1])
+        return f"写脚本 {base}" if base.endswith(".py") else f"写 {base}"
+    return summary
+
+
 def append_console(feed, text):
     """把一行（去色后）追加进工作区可见的 console.log（用户随时可看）。"""
     path = feed.get("console_file") if feed else None
@@ -358,7 +370,7 @@ def run_session(cmd, log_file, timeout_sec, env, cwd, progress_path=None, feed=N
                         elif not agent_writes_progress[0]:
                             try:
                                 with open(progress_path, "w", encoding="utf-8") as pf:
-                                    pf.write(summary[:50] + "\n")
+                                    pf.write(heartbeat_text(summary)[:50] + "\n")
                             except OSError:
                                 pass
             if etype == "result" and event:
@@ -446,6 +458,27 @@ def main():
     if workspace:
         os.makedirs(debug_dir, exist_ok=True)
 
+    # 即时失败回执：角色 prompt / 任务文件缺失时立刻写 BLOCKED .result。
+    # 后台派活（命令带 &）的 stderr 会被 shell 吞掉，Orchestrator 只认
+    # .result——没有回执它会空转满整个轮询周期（I510 实测烧过 9.5 分钟）。
+    # 注意这发生在清理旧 .result 之前：回执直接覆盖陈旧汇报，语义正确。
+    missing = []
+    if not os.path.isfile(prompt_file_abs):
+        missing.append(f"角色 prompt 不存在：{prompt_file_abs}")
+    if not os.path.isfile(task_file_abs):
+        missing.append(f"任务文件不存在：{task_file_abs}（先写任务文件再派活）")
+    if missing:
+        err = "；".join(missing)
+        print(f"[spawn:{role}] error: {err}", file=sys.stderr)
+        if workspace:
+            early = runtime_paths(debug_dir, role, task_file_abs,
+                                  bool(os.environ.get("SPAWN_RUNTIME_BY_TASK")))
+            write_failure_result(early["result"], role, err)
+            append_console({"console_file": os.path.join(workspace_abs, "console.log")},
+                           f"[{role}·{task_key_of(task_file_abs)}] 失败：{err}")
+            git_snapshot(workspace, f"{role} missing files ({os.path.basename(task_file_abs)})")
+        sys.exit(1)
+
     system_prompt = open(prompt_file_abs, encoding="utf-8").read()
     # 模板变量：{project_root} 永远替换（移植性）；{workspace} 用绝对路径
     # 替换（下面会把 cwd 改成 workspace）；{task} 用任务键替换
@@ -456,7 +489,9 @@ def main():
     system_prompt = system_prompt.replace("{task}", task_key_of(task_file_abs))
     task = open(task_file_abs, encoding="utf-8").read()
     if workspace:
-        task += f"\n\n**重要：** 所有文件操作必须在 `{workspace_abs}` 目录内进行，不要在项目根目录创建文件。"
+        task += (f"\n\n**重要：** 所有文件操作必须在 `{workspace_abs}` 目录内进行，不要在项目根目录创建文件。"
+                 "长时间运行的命令（脚本执行、计算）一律**前台同步**运行，不要加 `&` 放后台——"
+                 "后台任务的输出文件在工作区之外，会被路径守卫拦截，读不到就只能重跑一遍。")
 
     # 断点续传提示词（--resume 时用；原任务已在会话历史里，不重发）
     resume_prompt = (

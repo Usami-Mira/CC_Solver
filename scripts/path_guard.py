@@ -11,8 +11,10 @@
 
 其余一切路径（~/.claude、input/ 标准答案、其它 workspace、项目其余部分）
 一律 exit(2) 硬拦截。Bash 命令会被分词扫描，引号内的路径同样会被检查。
-两类豁免（防误杀）：/dev/null 等设备文件白名单放行；磁盘上不存在的路径
-不可能泄漏数据，放行——但重定向目标（>/>>）是写入方向，不在此列。
+三类豁免（防误杀）：/dev/null 等设备文件白名单放行；磁盘上不存在的路径
+不可能泄漏数据，放行——但重定向目标（>/>>）是写入方向，不在此列；
+裸 "/"（内联代码除号）放行——除非它跟在 ls/find/grep 等命令后当路径
+参数用（`ls /`、`find / -name ...` 从根扫描文件系统，仍拦截）。
 
 已知边界（设计上接受）：base64/变量拼接等混淆手段无法静态拦截；
 本 hook 的定位是"代码层挡住一切正常与常规取巧的偷看"，
@@ -45,6 +47,14 @@ TOKEN_SPLIT = re.compile(r'[\s|&;<>()`\'"\[\]{}]+')
 DEVICE_PATH_OK = re.compile(r'^/dev/(null|zero|random|urandom|full|stdin|stdout|stderr|tty.*|pts/.*|fd/.*)$')
 # 重定向写入目标（> / >>）：写入方向，即使目标尚不存在也必须检查
 REDIRECT_WRITE_RE = re.compile(r'(?<![>&|])>{1,2}(?!&)\s*([^\s|&;<>]+)')
+# 以路径为参数的文件操作命令：裸 "/" 紧跟在这些命令之后（如 `ls /`、
+# `find / -name ...`）= 从文件系统根部扫描，必须拦截；其余场景的裸 "/"
+# 几乎全是内联代码里的除号（python -c "a / b" 被分词成 a、/、b）
+ROOT_ARG_CMDS = {"ls", "find", "cat", "head", "tail", "less", "more",
+                 "grep", "rg", "rm", "cp", "mv", "du", "tree", "stat",
+                 "tar", "rsync", "diff", "wc", "file", "truncate",
+                 "chmod", "chown", "touch", "dd"}
+CMD_SEGMENT_RE = re.compile(r";|&&|\|\||\|")
 
 
 def deny(reason):
@@ -132,6 +142,19 @@ def main():
         tokens = [t for t in TOKEN_SPLIT.split(cmd) if t]
         # 重定向目标（>/>>）是写入方向：即使尚不存在也必须全程检查
         redirect_targets = {m.group(1) for m in REDIRECT_WRITE_RE.finditer(cmd)}
+
+        # 裸 "/" 是否作为路径参数出现：逐命令段（; && || | 切分）判断——
+        # 段首是文件操作命令且段内含孤立 "/"（两侧是空白）才算。
+        # 这样 `ls /`、`grep -r x /` 被拦，而 `ls ws && python3 -c "a / b"`
+        # 里的除号不受牵连。
+        def _segment_scans_root(seg):
+            words = [w for w in seg.split() if not w.startswith("-")]
+            return (bool(words) and os.path.basename(words[0]) in ROOT_ARG_CMDS
+                    and re.search(r"(^|\s)/(\s|$)", seg) is not None)
+
+        root_arg_segments = any(_segment_scans_root(seg)
+                                for seg in CMD_SEGMENT_RE.split(cmd))
+
         for tok in tokens:
             base = os.path.basename(tok)
             if base == "claude" or tok.endswith("/claude"):
@@ -142,6 +165,11 @@ def main():
                 norm = normalize(tok)
                 if DEVICE_PATH_OK.match(norm):
                     continue  # /dev/null 等设备文件：放行（历史误杀修复）
+                if norm.rstrip("/") == "" and not root_arg_segments:
+                    # 裸 "/"（含 "//"）：内联代码里的除号——a / b 分词后
+                    # a、/、b，"/" 自己不指向任何数据。仅当整条命令里存在
+                    # `文件操作命令 … / …` 段（上面已判定）时才当路径拦。
+                    continue
                 if tok not in redirect_targets and norm not in redirect_targets:
                     # 磁盘上不存在的路径不可能泄漏数据——放行。这消除了物理符号
                     # （\Gamma、\sin^2 等出现在命令里被误判为路径）的误杀。

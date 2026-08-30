@@ -12,6 +12,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 import load_env  # noqa: F401 — 自动载入 .env（setup.sh 写入的 API 配置）
 from stream_parser import parse_stream_event
 import memory_guard
+from spawn import branch_color, task_key_of  # 终端着色与派活行共用同一套规则
 
 PROMPTS_DIR = ROOT / "prompts"
 SKILLS_DIR = PROMPTS_DIR / "skills"
@@ -360,12 +361,31 @@ def console_log(workspace_abs, text):
         pass
 
 
+# 中断处理：Ctrl-C / SIGTERM 时先整组杀掉 Orchestrator 再退出。
+# 不杀的话 run.py 死后 claude 会话变孤儿，再次启动 --resume 同一会话会冲突。
+# 断点（.state/.result/.session/git 快照）全部在代码层保存，重启自动续传。
+_ACTIVE = {"proc": None, "workspace": ""}
+
+
+def _shutdown(signum, _frame):
+    proc = _ACTIVE.get("proc")
+    if proc is not None:
+        try:
+            kill_process_group(proc)
+        except Exception:
+            pass
+    console_log(_ACTIVE.get("workspace", ""),
+                f"收到中断信号（{signum}）——Orchestrator 已停止，断点已保存，重启即续传")
+    os._exit(128 + signum)
+
+
 def render_tool_lines(name, inp, workspace_abs):
     """把一个 tool_use 事件渲染成控制台行：**只保留 sub-Agent 的派活事件**。
 
     监控焦点在 sub-Agent 层：Orchestrator 自己的调度动作（读写/轮询/写任务
     文件）一律不上屏（全量记录仍在 .orchestrator.log）；sub-Agent 内部的
     活动（脚本创建、真正的计算命令）由 spawn.py 直接以带路线颜色的行上屏。
+    返回 (主语, 动作, 任务键) 三元组——任务键用于路线着色。
     """
     if name == "Bash":
         cmd = (inp.get("command") or "").strip()
@@ -375,9 +395,59 @@ def render_tool_lines(name, inp, workspace_abs):
             action = f"开始 ({_short_path(task, workspace_abs)})"
             if note:
                 action += f"：{note}"
-            lines.append((f"{role}（{role_model(role)}）", action))
+            lines.append((f"{role}（{role_model(role)}）", action, task_key_of(task)))
         return lines
     return []
+
+
+# console.log 中 sub-Agent 活动行的格式（由 spawn.py 的 append_console 写入，
+# 无色文本——文件随时可读；终端镜像时由 mirror_line 按同一规则重新着色）
+AGENT_LINE_RE = re.compile(
+    r"^\[\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] (\[([A-Za-z]+)·([^\]]*)\] )(.*)$")
+
+
+def mirror_line(line):
+    """console.log 行 → 终端镜像行：只镜像 sub-Agent 活动行（带路线颜色）；
+    Orchestrator 层级行（派活/生命周期/进度）不镜像。返回 "" 表示不上屏。"""
+    m = AGENT_LINE_RE.match(line)
+    if not m:
+        return ""
+    bracket, role, branch, text = m.groups()
+    color = branch_color(branch or role)
+    return f"\033[1;{color}m{bracket}\033[0m{text}"
+
+
+def console_mirror(workspace_abs, stop_event):
+    """尾随 console.log，把新增的 sub-Agent 活动行着色镜像到终端。
+
+    spawn.py 的彩色活动行被 Orchestrator 的 Bash 工具吞掉、只落 console.log；
+    这里把该文件当活动总线镜像回终端，从本次启动时的文件末尾开始（不重放
+    历史），文件被截断则回到开头。"""
+    path = os.path.join(workspace_abs, "console.log")
+    try:
+        pos = os.path.getsize(path)
+    except OSError:
+        pos = 0
+    while not stop_event.wait(1):
+        try:
+            size = os.path.getsize(path)
+        except OSError:
+            continue
+        if size < pos:
+            pos = 0
+        if size == pos:
+            continue
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                f.seek(pos)
+                chunk = f.read()
+                pos = f.tell()
+        except OSError:
+            continue
+        for ln in chunk.splitlines():
+            out = mirror_line(ln)
+            if out:
+                print(out, flush=True)
 
 
 def resume_session_id(workspace):
@@ -699,6 +769,12 @@ def main():
     log_path = os.path.join(workspace, DEBUG_DIR, ".orchestrator.log")
     start_time = time.time()
 
+    # Ctrl-C / SIGTERM：先杀 Orchestrator 进程组再退出（防孤儿会话与
+    # --resume 冲突）——断点续传机制保证重启即恢复
+    _ACTIVE["workspace"] = workspace_abs
+    signal.signal(signal.SIGINT, _shutdown)
+    signal.signal(signal.SIGTERM, _shutdown)
+
     # 题目累计总运行时长：续传读入以往累计基数，新运行清零。
     # 进度行的 [HH:MM:SS] 即此累计值（断点前的时间也计入）。
     runtime_base = read_runtime_base(workspace_abs) if resume_sid else 0.0
@@ -730,6 +806,7 @@ def main():
                 # workspace/.claude/settings.json 由 ensure_workspace_layout 注入。
                 cwd=workspace_abs,
             )
+            _ACTIVE["proc"] = proc   # 供 _shutdown 中断时整组清理
 
             result_event = None
 
@@ -753,8 +830,10 @@ def main():
                         ts = time.strftime("%H:%M:%S")
                         if etype == "tool_use":
                             tname, tinp = _tool_use_name_input(event)
-                            for subject, action in render_tool_lines(tname, tinp, workspace_abs):
-                                print(f"[{ts}] {subject} · {action}", flush=True)
+                            for subject, action, tkey in render_tool_lines(tname, tinp, workspace_abs):
+                                color = branch_color(tkey or subject)
+                                print(f"[{ts}] \033[1;{color}m{subject}\033[0m · {action}",
+                                      flush=True)
                                 console_log(workspace_abs, f"{subject} · {action}")
                         elif etype == "init":
                             print(f"[{ts}] Orchestrator · 会话开始 {summary}", flush=True)
@@ -789,6 +868,7 @@ def main():
             except subprocess.TimeoutExpired:
                 print("[Orchestrator] 产出结果后 15s 未退出——保留进程组，由监督者续跑接管")
 
+            _ACTIVE["proc"] = None
             return result_event
 
         # 进度显示：每 5 秒轮询 .state（优先 debug/.state），变化时打印进度条（另每 5 分钟心跳）
@@ -815,7 +895,8 @@ def main():
                     key = json.dumps(st, sort_keys=True)
                     if key != last_key or now - last_print >= 300:
                         line = render_progress(st, display_start, read_progress_lines(workspace))
-                        print(line, flush=True)
+                        # 不上终端——终端只留给 sub-Agent 活动流；
+                        # 状态变化仍进 console.log 与全量日志供事后查看
                         console_log(workspace_abs, line)
                         log_file.write(line + "\n")
                         log_file.flush()
@@ -826,6 +907,11 @@ def main():
 
         progress_thread = threading.Thread(target=progress_monitor, daemon=True)
         progress_thread.start()
+
+        # console.log 活动镜像：sub-Agent 的彩色活动行尾随上屏（1s 粒度）
+        mirror_thread = threading.Thread(
+            target=console_mirror, args=(workspace_abs, progress_stop), daemon=True)
+        mirror_thread.start()
 
         # 启动：有可续接会话则先 --resume；失败（非超时）则回退全新会话
         if resume_sid:
@@ -881,6 +967,7 @@ def main():
 
         progress_stop.set()
         progress_thread.join(timeout=5)
+        mirror_thread.join(timeout=5)
         elapsed = time.time() - start_time
         total_elapsed = runtime_base + elapsed
         try:

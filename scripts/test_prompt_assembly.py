@@ -212,8 +212,9 @@ class TestConsoleRender(unittest.TestCase):
                f"agents/builder task_a1 &\necho SPAWNED")
         lines = self.render("Bash", {"command": cmd})
         self.assertEqual(len(lines), 1)
-        who, action = lines[0]
+        who, action, tkey = lines[0]
         self.assertTrue(who.startswith("Builder"))
+        self.assertEqual(tkey, "task_a1")
         self.assertIn("task_a1", action)
         self.assertIn("验证能量本征值的第一条路线", action)
 
@@ -241,6 +242,31 @@ class TestConsoleRender(unittest.TestCase):
 
     def test_non_spawn_bash_silenced(self):
         self.assertEqual(self.render("Bash", {"command": "head -1 review.md"}), [])
+
+
+class TestConsoleMirror(unittest.TestCase):
+    """console.log → 终端镜像：只镜像 sub-Agent 活动行并按同一规则重新着色；
+    Orchestrator 层级行（派活/生命周期/进度）一律不镜像。"""
+
+    def test_agent_line_recolored(self):
+        ln = "[08-30 17:41:01] [Evaluator·task_eval_c1] script 执行：verify.py"
+        out = run.mirror_line(ln)
+        color = run.branch_color("task_eval_c1")
+        self.assertTrue(out.startswith(f"\033[1;{color}m[Evaluator·task_eval_c1] "))
+        self.assertTrue(out.endswith("\033[0mscript 执行：verify.py"))
+
+    def test_role_fallback_color(self):
+        ln = "[08-30 12:00:00] [Critic·] 完成（10s）"   # 空分支 → 按角色着色
+        out = run.mirror_line(ln)
+        color = run.branch_color("Critic")
+        self.assertIn(f"\033[1;{color}m[Critic·]", out)
+
+    def test_orchestrator_lines_not_mirrored(self):
+        for ln in ("[08-30 17:40:59] Orchestrator · deep_search council SEARCH → round 2",
+                   "[08-30 17:40:59] Builder（qwen3.6-plus） · 开始 (tasks/task_x.md)",
+                   "[08-30 17:40:59] 会话结束但流水线未完成——自动续跑 1/30",
+                   "[08-30 17:40:59] [03:04:21] Orchestrator · deep_search council ..."):
+            self.assertEqual(run.mirror_line(ln), "", f"不应镜像: {ln}")
 
 
 class TestAutoResumeSpinGuard(unittest.TestCase):

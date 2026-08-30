@@ -94,7 +94,7 @@
       "max_motions": 6,
       "max_verify_rounds": 3,
       "max_subtasks": 3,
-      "ephemeral_timeout": 6000,
+      "ephemeral_timeout": 18000,
       "deep_timeout": 18000,
       "agent_models": {
         "Planner": "qwen3.6-plus",
@@ -120,7 +120,7 @@
       "max_debate_rounds": 2,
       "max_verify_rounds": 3,
       "max_concurrent_agents": 4,
-      "ephemeral_timeout": 6000,
+      "ephemeral_timeout": 18000,
       "deep_timeout": 18000,
       "agent_models": {
         "Assessor": "qwen3.6-plus",

@@ -6,14 +6,19 @@
 - runtime_paths：keyed（.<Role>_<任务名>.*）与 legacy（.<Role>.*）两套命名
 - branch_color：确定性哈希着色（跨进程稳定）
 - describe_bash：bash 命令文字化（家务命令静默、脚本/知识库/内联分类）
+- heartbeat_text：.progress 心跳同套文字化（原始命令不进进度播报）
 - agent_event_line：控制台行渲染（bash 命令文字化后上屏、脚本创建上屏、
   workspace 内 md 写入静默、路线颜色标注）
+- 即时失败回执：派活前任务文件/角色 prompt 缺失 → 立刻写 BLOCKED .result
+  （后台派活的报错被 shell 吞掉，Orchestrator 只认 .result）
 
 运行：python3 scripts/test_spawn_keying.py -v
 """
 
 import os
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -146,6 +151,33 @@ class TestDescribeBash(unittest.TestCase):
         self.assertIsNone(spawn.describe_bash("2>&1 weird | stuff"))
 
 
+class TestHeartbeatText(unittest.TestCase):
+    """.progress 心跳与上屏行同一套文字化，原始命令不进进度播报。"""
+
+    def test_bash_textified(self):
+        self.assertEqual(
+            spawn.heartbeat_text("Bash: timeout 120 python3 scripts/x/run.py"),
+            "script 执行：run.py")
+
+    def test_bash_housekeeping_generic(self):
+        self.assertEqual(spawn.heartbeat_text("Bash: cat debug/.state"),
+                         "执行命令")
+
+    def test_write_py(self):
+        self.assertEqual(
+            spawn.heartbeat_text("Write: /ws/scripts/builder/t/check.py"),
+            "写脚本 check.py")
+
+    def test_write_md(self):
+        self.assertEqual(
+            spawn.heartbeat_text("Write: /ws/calculation_a1.md"),
+            "写 calculation_a1.md")
+
+    def test_other_passthrough(self):
+        self.assertEqual(spawn.heartbeat_text("Read: /ws/problem.md"),
+                         "Read: /ws/problem.md")
+
+
 class TestAgentEventLine(unittest.TestCase):
     WS = "/abs/ws"
 
@@ -208,6 +240,59 @@ class TestAgentEventLine(unittest.TestCase):
         line = spawn.agent_event_line("Builder", "t",
                                       "Bash: python3 a.py\necho done")
         self.assertNotIn("echo done", line)
+
+
+class TestMissingFileReceipt(unittest.TestCase):
+    """派活前文件缺失必须立刻写 BLOCKED 回执：后台派活（&）的报错会被
+    shell 吞掉，Orchestrator 只认 .result——没有回执它会空转满整个轮询
+    周期（I510 实测烧过 9.5 分钟才发现 NOT_STARTED）。"""
+
+    SPAWN = os.path.join(os.path.dirname(os.path.abspath(spawn.__file__)),
+                         "spawn.py")
+
+    def setUp(self):
+        self.ws = tempfile.mkdtemp(prefix="spawn_fail_ws_")
+        os.makedirs(os.path.join(self.ws, "debug"), exist_ok=True)
+        os.makedirs(os.path.join(self.ws, "tasks"), exist_ok=True)
+
+    def run_spawn(self, args, extra_env=None):
+        env = os.environ.copy()
+        env.pop("SOLVER_PIPELINE", None)
+        if extra_env:
+            env.update(extra_env)
+        return subprocess.run([sys.executable, self.SPAWN] + args,
+                              capture_output=True, text=True, env=env,
+                              timeout=120)
+
+    def read(self, rel):
+        with open(os.path.join(self.ws, rel), encoding="utf-8") as f:
+            return f.read()
+
+    def test_missing_task_writes_blocked_result(self):
+        # 未设 SPAWN_RUNTIME_BY_TASK → 旧命名 .<Role>.result
+        r = self.run_spawn(["Builder", self.ws, "agents/builder", "task_ghost"])
+        self.assertEqual(r.returncode, 1)
+        content = self.read("debug/.Builder.result")
+        self.assertIn("HANDOFF", content)
+        self.assertIn("STATUS: BLOCKED", content)
+        self.assertIn("任务文件不存在", content)
+        self.assertIn("失败", self.read("console.log"))
+
+    def test_missing_task_keyed_naming(self):
+        r = self.run_spawn(["Evaluator", self.ws, "agents/evaluator", "task_x"],
+                           extra_env={"SPAWN_RUNTIME_BY_TASK": "1"})
+        self.assertEqual(r.returncode, 1)
+        self.assertTrue(os.path.exists(
+            os.path.join(self.ws, "debug", ".Evaluator_task_x.result")))
+
+    def test_missing_prompt_writes_blocked_result(self):
+        with open(os.path.join(self.ws, "tasks", "task_y.md"), "w",
+                  encoding="utf-8") as f:
+            f.write("# t\n")
+        r = self.run_spawn(["Builder", self.ws, "agents/no_such_prompt", "task_y"])
+        self.assertEqual(r.returncode, 1)
+        content = self.read("debug/.Builder.result")
+        self.assertIn("角色 prompt 不存在", content)
 
 
 if __name__ == "__main__":
