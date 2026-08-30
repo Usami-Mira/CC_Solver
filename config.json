@@ -90,8 +90,9 @@
       "timeout_seconds": 864000,
       "max_iterations": 20,
       "max_revisions": 8,
-      "max_rounds": 3,
       "max_motions": 6,
+      "max_verify_rounds": 3,
+      "max_subtasks": 3,
       "ephemeral_timeout": 6000,
       "deep_timeout": 18000,
       "agent_models": {

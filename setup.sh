@@ -35,6 +35,12 @@ if command -v git >/dev/null; then
 else
     bad "未找到 git（Ubuntu: sudo apt-get install git / macOS: brew install git）"
 fi
+# Agent 的解题脚本用裸 python3 运行（不是 rag_env），数值库必须装在系统 python 上
+if python3 -c "import numpy, scipy, mpmath, sympy, matplotlib" >/dev/null 2>&1; then
+    ok "python3 计算依赖齐全（numpy/scipy/mpmath/sympy/matplotlib）"
+else
+    bad "系统 python3 缺 numpy/scipy/mpmath/sympy/matplotlib（Agent 解题脚本运行时用）——安装: python3 -m pip install --user numpy scipy mpmath sympy matplotlib（Debian/Ubuntu 报 externally-managed-environment 时改用 apt 或加 --break-system-packages）"
+fi
 if command -v claude >/dev/null; then
     ok "claude CLI: $(claude --version 2>/dev/null | head -1)"
 else
@@ -137,31 +143,74 @@ echo ""
 echo "=== [4/8] RAG 环境 ==="
 RAG_DIR="textbook"
 RAG_VENV="$RAG_DIR/rag_env"
+MODEL_DIR="$RAG_DIR/models/bge-m3"
 
 if [ ! -d "$RAG_VENV" ]; then
     echo "  创建 RAG 虚拟环境..."
-    python3 -m venv "$RAG_VENV" && ok "venv: $RAG_VENV" || bad "venv 创建失败"
+    if python3 -m venv "$RAG_VENV"; then
+        ok "venv: $RAG_VENV"
+    else
+        bad "venv 创建失败（Ubuntu/Debian 需先: sudo apt-get install python3-venv 或 python3.$(python3 -c 'import sys;print(sys.version_info[1])')-venv；macOS: brew install python）"
+    fi
 else
     ok "venv 已存在: $RAG_VENV"
 fi
 
 if [ "$QUICK" = "1" ]; then
-    warn "--quick：跳过 pip 安装与 RAG 测试"
+    warn "--quick：跳过 pip 安装、模型下载与 RAG 测试"
+elif [ ! -x "$RAG_VENV/bin/python" ]; then
+    bad "venv 不可用，无法安装 RAG 依赖（请先解决上方 venv 问题再重跑）"
 else
+    # 一律用 "python -m pip" 而非 venv/bin/pip：venv 被移动/复制过之后
+    # bin/pip 脚本的 shebang 会失效，而 python -m pip 不受影响
     echo "  安装 RAG 依赖（首次可能较慢）..."
-    if "$RAG_VENV/bin/pip" install --upgrade pip --quiet && \
-       "$RAG_VENV/bin/pip" install --quiet \
-           torch FlagEmbedding sentence-transformers weaviate-client \
+    # weaviate-client 锁 4.22.0：脚本用 v4 API，仓库自带 weaviate_data/ 为 1.30.5 数据格式；
+    # pip 装到 v5 可能 API/数据不兼容
+    if "$RAG_VENV/bin/python" -m pip install --upgrade pip --quiet && \
+       "$RAG_VENV/bin/python" -m pip install --quiet \
+           torch FlagEmbedding sentence-transformers "weaviate-client==4.22.0" \
            transformers numpy scipy mpmath sympy matplotlib; then
         ok "依赖安装完成"
     else
         bad "pip 安装失败（国内网络可试: pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple）"
     fi
 
+    # bge-m3 嵌入模型（~2.3GB）：不入 git，必须本地下载。默认走 hf-mirror 国内镜像；
+    # 能直连 huggingface.co 的环境先 export HF_ENDPOINT=https://huggingface.co 再跑。
+    if [ -s "$MODEL_DIR/pytorch_model.bin" ] && [ -f "$MODEL_DIR/config.json" ] && \
+       [ -f "$MODEL_DIR/colbert_linear.pt" ] && [ -f "$MODEL_DIR/sparse_linear.pt" ]; then
+        ok "bge-m3 模型已就绪: $MODEL_DIR"
+    else
+        echo "  下载 bge-m3 嵌入模型（~2.3GB，支持断点续传；首次可能较慢）..."
+        if HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}" HF_HUB_DISABLE_XET=1 \
+           "$RAG_VENV/bin/python" - "$MODEL_DIR" <<'PYEOF'
+import sys
+from huggingface_hub import snapshot_download
+snapshot_download(
+    "BAAI/bge-m3",
+    local_dir=sys.argv[1],
+    allow_patterns=["*.json", "sentencepiece.bpe.model", "pytorch_model.bin",
+                    "colbert_linear.pt", "sparse_linear.pt", "1_Pooling/*"],
+    ignore_patterns=["onnx/*", "imgs/*"],
+)
+PYEOF
+        then
+            if [ -s "$MODEL_DIR/pytorch_model.bin" ]; then
+                ok "bge-m3 模型下载完成"
+            else
+                bad "模型下载似乎不完整（缺 $MODEL_DIR/pytorch_model.bin）"
+            fi
+        else
+            bad "bge-m3 模型下载失败（重跑 setup.sh 可断点续传；海外网络可先 export HF_ENDPOINT=https://huggingface.co；或手动下载 BAAI/bge-m3 到 $MODEL_DIR/）"
+        fi
+    fi
+
     if "$RAG_VENV/bin/python" "$RAG_DIR/rag_build/query_rag.py" "test query" >/dev/null 2>&1; then
         ok "RAG 查询可用"
+    elif [ ! -s "$MODEL_DIR/pytorch_model.bin" ]; then
+        bad "RAG 不可用：bge-m3 模型缺失（见上方下载步骤）"
     else
-        warn "RAG 查询失败（模型/向量库缺失，或 Weaviate 未启动）"
+        warn "RAG 查询失败（模型已就绪）——常见原因：Weaviate Embedded 首次运行需从 GitHub 下载服务端二进制（~125MB）到 ~/.cache/weaviate-embedded/，网络受限会失败（可手动下载 weaviate-v1.30.5-* 放入该目录）；或 weaviate_data 损坏（用 rag_build/embed_bge.py 重建）"
     fi
 fi
 

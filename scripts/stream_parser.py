@@ -60,15 +60,24 @@ def _parse_event(event):
         return ("tool_result", str(content)[:300], event)
 
     elif etype == "result":
-        # 网关/代理可能把数值字段返回为 null —— 强制转 float，
+        # 不输出费用（网关价格未知/不可靠）——只报 token 消耗。
+        # 网关/代理可能把字段返回为 null —— 逐项强制转 int，
         # 绝不让格式化异常冒泡到泵送线程
-        try:
-            cost = float(event.get("total_cost_usd") or 0)
-        except (TypeError, ValueError):
-            cost = 0.0
+        usage = event.get("usage") or {}
+        if not isinstance(usage, dict):
+            usage = {}
+
+        def _tok(key):
+            try:
+                return int(usage.get(key) or 0)
+            except (TypeError, ValueError):
+                return 0
+
         summary = (f"duration={event.get('duration_ms', 0)}ms "
                    f"turns={event.get('num_turns', 0)} "
-                   f"cost=${cost:.4f}")
+                   f"tokens: in={_tok('input_tokens')} out={_tok('output_tokens')} "
+                   f"cache_write={_tok('cache_creation_input_tokens')} "
+                   f"cache_read={_tok('cache_read_input_tokens')}")
         return ("result", summary, event)
 
     return ("other", None, event)

@@ -11,6 +11,8 @@
 
 其余一切路径（~/.claude、input/ 标准答案、其它 workspace、项目其余部分）
 一律 exit(2) 硬拦截。Bash 命令会被分词扫描，引号内的路径同样会被检查。
+两类豁免（防误杀）：/dev/null 等设备文件白名单放行；磁盘上不存在的路径
+不可能泄漏数据，放行——但重定向目标（>/>>）是写入方向，不在此列。
 
 已知边界（设计上接受）：base64/变量拼接等混淆手段无法静态拦截；
 本 hook 的定位是"代码层挡住一切正常与常规取巧的偷看"，
@@ -39,6 +41,10 @@ FILE_TOOLS = {
 WRITE_TOOLS = {"Write", "Edit", "NotebookEdit"}
 # Bash 分词分隔符：空白、管道、重定向、命令分隔、引号、括号（吃掉 $(...) 与反引号）
 TOKEN_SPLIT = re.compile(r'[\s|&;<>()`\'"\[\]{}]+')
+# 设备文件白名单：/dev/null 之类的重定向目标是 UNIX 惯例，不是数据通道
+DEVICE_PATH_OK = re.compile(r'^/dev/(null|zero|random|urandom|full|stdin|stdout|stderr|tty.*|pts/.*|fd/.*)$')
+# 重定向写入目标（> / >>）：写入方向，即使目标尚不存在也必须检查
+REDIRECT_WRITE_RE = re.compile(r'(?<![>&|])>{1,2}(?!&)\s*([^\s|&;<>]+)')
 
 
 def deny(reason):
@@ -124,6 +130,8 @@ def main():
     if tool == "Bash":
         cmd = tin.get("command", "")
         tokens = [t for t in TOKEN_SPLIT.split(cmd) if t]
+        # 重定向目标（>/>>）是写入方向：即使尚不存在也必须全程检查
+        redirect_targets = {m.group(1) for m in REDIRECT_WRITE_RE.finditer(cmd)}
         for tok in tokens:
             base = os.path.basename(tok)
             if base == "claude" or tok.endswith("/claude"):
@@ -131,6 +139,16 @@ def main():
                 deny("launching nested claude sessions is forbidden")
             # 疑似路径：含 /、以 ~ 开头、含 $HOME
             if "/" in tok or tok.startswith("~") or "$HOME" in tok:
+                norm = normalize(tok)
+                if DEVICE_PATH_OK.match(norm):
+                    continue  # /dev/null 等设备文件：放行（历史误杀修复）
+                if tok not in redirect_targets and norm not in redirect_targets:
+                    # 磁盘上不存在的路径不可能泄漏数据——放行。这消除了物理符号
+                    # （\Gamma、\sin^2 等出现在命令里被误判为路径）的误杀。
+                    cands = [norm] if os.path.isabs(norm) else \
+                        [os.path.join(b, norm) for b in (hook_cwd, workspace)]
+                    if not any(os.path.exists(c) for c in cands):
+                        continue
                 check(tok, read_roots, "path in command")
 
         # textbook 是**只读**根：上面的分词检查只验证路径可达（读视角），

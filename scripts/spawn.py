@@ -320,6 +320,15 @@ def main():
     except OSError:
         pass
 
+    # 清理上一次派活遗留的 .result/.metrics：Orchestrator 的轮询等待与断点续传
+    # 以「.result 存在」作为「本次派活已完成」的信号，陈旧汇报会造成误判完成。
+    # （.log/.session 保留：追加式审计记录与续传凭据。）
+    for stale in (result_path, metrics_path):
+        try:
+            os.remove(stale)
+        except OSError:
+            pass
+
     # 设置环境变量：WORKSPACE 激活 path_guard hook（.claude/settings.json 由
     # run.py 写入工作区）；不再用 --bare —— 它会连同 hooks 一起跳过。
     # auto-memory 由 memory_guard 运行期清空记忆目录来阻断。

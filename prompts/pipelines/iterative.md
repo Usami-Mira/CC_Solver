@@ -48,6 +48,7 @@ Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代�
 
 ```markdown
 # Task explorer_{n}
+说明：第 {n} 轮——提出新的求解假设
 
 请阅读 `{workspace}/problem.md` 和 `{workspace}/exploration_history.md`（如不存在则为第一轮）。
 提出一个新的假设，写入 `{workspace}/hypothesis_{n}.md`。
@@ -57,6 +58,7 @@ Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代�
 
 ```markdown
 # Task builder_{n}
+说明：第 {n} 轮——验证假设 {n}，产出实验记录
 
 请阅读 `{workspace}/problem.md` 和 `{workspace}/hypothesis_{n}.md`，验证这个假设。
 将验证过程与结果写入 `{workspace}/experiment_{n}.md`，计算脚本放在 `{workspace}/scripts/builder/iter_{n}/`。
@@ -66,6 +68,7 @@ Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代�
 
 ```markdown
 # Task evaluator_{n}
+说明：第 {n} 轮——评估假设验证结果（PASS/PARTIAL/DEAD_END）
 
 请阅读 `{workspace}/problem.md`、`{workspace}/hypothesis_{n}.md` 和 `{workspace}/experiment_{n}.md`，评估本轮进展
 （审计 `{workspace}/scripts/builder/` 下的代码——只读，不运行；你自己的验证脚本放 `{workspace}/scripts/evaluator/iter_{n}/`，从 problem.md 独立转录）。

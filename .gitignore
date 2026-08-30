@@ -57,11 +57,12 @@ textbook/merged/chunks_final.json
 # 图片上下文数据
 textbook/image_context.json
 
-# 嵌入模型（~419MB）
+# 嵌入模型（bge-m3，~2.3GB，由 setup.sh 自动下载）
 textbook/models/
 
 # Python 虚拟环境（~5GB）
 textbook/rag_env/
+textbook/venv/
 
 # Weaviate 本地数据
 textbook/.local/

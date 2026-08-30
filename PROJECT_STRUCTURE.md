@@ -289,11 +289,11 @@ next: Planner task_planner_4.md
 
 Orchestrator 每完成一个阶段更新一次，续跑时先读它恢复决策上下文（auto-compact 后同样可恢复）。
 
-**会话层** — `debug/.orchestrator_session` 与 `debug/.{role}.session` 存 Claude 会话 ID。超时/中断后，`run.py` / `spawn.py` 自动尝试 `claude --resume <会话ID>` 续接原会话（附固定的续传提示：先盘点已完成部分，再从中断处继续）；续接失败或再次超时才退回开新会话。`--resume` 只用于超时/中断，不用于 BLOCKED/FAIL 后的重试。
+**会话层** — `debug/.orchestrator_session` 与 `debug/.{role}.session` 存 Claude 会话 ID。超时/中断后，`run.py` / `spawn.py` 自动尝试 `claude --resume <会话ID>` 续接原会话（附固定的续传提示：先盘点已完成部分，再从中断处继续）；续接失败或再次超时才退回开新会话。`--resume` 只用于超时/中断，不用于 BLOCKED/FAIL 后的重试。此外 `run.py` 监督者还兜底一类早夭：`--print` 模式下不含工具调用的纯文本回应会立即结束会话，若会话已结束而 `final_summary.md` 未产出，监督者自动续跑同一会话（上限 30 次，连续 3 次零产出则中止），配合 Orchestrator 的轮询等待规范（等待期间每次回应必须带 Bash 工具调用）双层保活。
 
 ## Git 提交约定
 
-`spawn.py` 在每次 spawn sub-agent 前后各做一次 git 快照（`fcntl.flock` 文件锁互斥，同一工作区并行派活安全——如 parallel 的多 Planner、deep_search 的四专家并行），提交消息前缀自动解析自 `debug/.state` 的 `pipeline:` 行：
+`spawn.py` 在每次 spawn sub-agent 前后各做一次 git 快照（`fcntl.flock` 文件锁互斥，同一工作区并行派活安全——如 parallel 的多 Planner、deep_search 的三专家并行与 Critic ∥ Secretary），提交消息前缀自动解析自 `debug/.state` 的 `pipeline:` 行：
 
 | 时机 | 提交消息示例 |
 |------|----------|

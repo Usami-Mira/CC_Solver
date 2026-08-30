@@ -80,12 +80,13 @@ Planner 展开搜索树（一次生成 ≥2 个结构不同的分支）→ 每�
 
 ```markdown
 # Task planner_1（根展开）
+说明：树搜索首轮——审题并展开 ≥2 个结构不同的根分支
 
 请阅读 `{workspace}/problem.md`。
 
 然后：
 1. 写 `{workspace}/strategy.md`（题意理解 + 路线划分理由）
-2. 给出 **≥2 个结构不同**的求解路线（不同出发点/定理/积分路径），每条路线写一个完整验证任务 `{workspace}/tasks/task_{id}.md`。每个任务文件必须包含：
+2. 给出 **≥2 个结构不同**的求解路线（不同出发点/定理/积分路径），每条路线写一个完整验证任务 `{workspace}/tasks/task_{id}.md`（标题后第一行写 `说明：<一句话目的>`）。每个任务文件必须包含：
    a. 完整物理细节（算什么、怎么算、全部参数）
    b. **验收判据**（机器可检），例如：
       - 结果形式约束（如"闭式，不含 $\mathrm{EllipticE}$/$\mathrm{EllipticF}$ 等特殊函数"）
@@ -106,6 +107,7 @@ Best-first 选出待展开节点 `{id}` 后（选择规则见下），写入样�
 
 ```markdown
 # Task planner_{n}（展开节点 {id}）
+说明：树搜索第 {n} 轮——展开节点 {id}（完成/继续分支/判死）
 
 请阅读 `{workspace}/problem.md`、`{workspace}/strategy.md`、`{workspace}/calculations_history.md`（如存在），
 以及节点 `{id}` 及其祖先节点相关的 `calculation_*.md`、`verification_*.md`。
@@ -116,7 +118,7 @@ Best-first 选出待展开节点 `{id}` 后（选择规则见下），写入样�
 
 三选一：
 a. 节点 `{id}` 的路径已能完整解题 → 写 `{workspace}/final_plan.md`，汇报 `STATUS: DONE`
-b. 需要继续分支 → 写 ≥2 个结构不同的后续验证任务 `task_{id2}.md`（各含验收判据，注明结果写入 `calculation_{id2}.md`、禁止写 `solution.md`，继承父节点已确认的结论），汇报 `STATUS: BRANCH` + `PARENT: {id}` + `NEXT_TASKS: ...`
+b. 需要继续分支 → 写 ≥2 个结构不同的后续验证任务 `task_{id2}.md`（标题后第一行写 `说明：<一句话目的>`；各含验收判据，注明结果写入 `calculation_{id2}.md`、禁止写 `solution.md`，继承父节点已确认的结论），汇报 `STATUS: BRANCH` + `PARENT: {id}` + `NEXT_TASKS: ...`
 c. 节点 `{id}` 实为死端/无价值 → 汇报 `STATUS: FAIL`（Orchestrator 将其标记为 DEAD 并换下一个前沿）
 
 若本轮有值得保留的新结论，追加到 `{workspace}/calculations_history.md`。
@@ -146,6 +148,7 @@ c. 节点 `{id}` 实为死端/无价值 → 汇报 `STATUS: FAIL`（Orchestrator
 
 ```markdown
 # Task eval_{id}
+说明：独立复核 {id} 号分支计算，逐条对照验收判据给结论
 
 请审查 `{workspace}/calculation_{id}.md`（参考 `{workspace}/problem.md` 与 `{workspace}/tasks/task_{id}.md`，并审计 `{workspace}/scripts/builder/` 下的代码——只读，不运行）。
 你的验证脚本放 `{workspace}/scripts/evaluator/task_eval_{id}/`（从 problem.md 独立转录）。
@@ -170,6 +173,7 @@ c. 节点 `{id}` 实为死端/无价值 → 汇报 `STATUS: FAIL`（Orchestrator
 
 ```markdown
 # Task planner_{n}（重新规划）
+说明：旧路线全部证死，换本质不同思路重新展开根分支
 
 此前所有路线均已证死。请阅读 `{workspace}/problem.md`、`{workspace}/strategy.md`、`{workspace}/calculations_history.md`
 及全部 `verification_*.md` 的失败原因（死端各卡在哪一步）。
@@ -186,6 +190,7 @@ c. 节点 `{id}` 实为死端/无价值 → 汇报 `STATUS: FAIL`（Orchestrator
 
 ```markdown
 # Task planner_{n}（强制收尾）
+说明：预算耗尽，按最优幸存路线强制写出 final_plan.md
 
 搜索预算已用尽。请阅读 `{workspace}/problem.md` 与现有全部记录，
 选择最有希望的幸存路线（或部分结果组合），写出 `{workspace}/final_plan.md`；
@@ -198,6 +203,7 @@ c. 节点 `{id}` 实为死端/无价值 → 汇报 `STATUS: FAIL`（Orchestrator
 
 ```markdown
 # Task verifier
+说明：审查定稿方案 final_plan.md，输出 SOUND 或 REVISE
 
 请审查 `{workspace}/final_plan.md`（对照 `{workspace}/problem.md`；如需上下文可读 `{workspace}/strategy.md` 和已有的计算/验证记录）。
 抽查脚本（如有）放 `{workspace}/scripts/verifier/`。
@@ -209,7 +215,7 @@ c. 节点 `{id}` 实为死端/无价值 → 汇报 `STATUS: FAIL`（Orchestrator
 - `SOUND` → 更新 `debug/.state`，进入阶段 3（Final Builder）
 - `REVISE` 且 `debug/.state` 中尚无 `verify_round`（第一次）：
   1. 更新 `debug/.state`：`verify_round: 1`
-  2. 写样板 `tasks/task_planner_{n}.md`（`{n}` 为下一个迭代编号），内容只有一句：「请阅读 `{workspace}/verification_plan.md` 中的问题清单，针对性修订 `{workspace}/final_plan.md`，完成后按原格式汇报 `STATUS: DONE`。」
+  2. 写样板 `tasks/task_planner_{n}.md`（`{n}` 为下一个迭代编号），内容：「说明：按 Verifier 问题清单修订 final_plan.md。请阅读 `{workspace}/verification_plan.md` 中的问题清单，针对性修订 `{workspace}/final_plan.md`，完成后按原格式汇报 `STATUS: DONE`。」
   3. `spawn.py Planner {workspace} agents/planner_deep task_planner_{n}`，读 `debug/.Planner.result`；`STATUS: DONE` 则回到本阶段重新验证（`STATUS: BRANCH/FAIL` 则按树搜索路由处理）
 - `REVISE` 且 `debug/.state` 已有 `verify_round: 1`（第二次）：**直接放行进入阶段 3**——在 `debug/.state` 记录 `last_verdict: REVISE` 后继续，不再循环
 
@@ -219,6 +225,7 @@ c. 节点 `{id}` 实为死端/无价值 → 汇报 `STATUS: FAIL`（Orchestrator
 
 ```markdown
 # Task final_builder
+说明：按定稿方案执行完整求解，产出 solution.md
 
 请阅读 `{workspace}/problem.md` 和 `{workspace}/final_plan.md`，执行完整求解。
 将完整推导写入 `{workspace}/solution.md`，最终答案用 $\boxed{}$ 标注。
@@ -227,6 +234,7 @@ c. 节点 `{id}` 实为死端/无价值 → 汇报 `STATUS: FAIL`（Orchestrator
 
 ```markdown
 # Task final_evaluator
+说明：最终审查 solution.md，输出 PASS 或 REVISE
 
 请审查 `{workspace}/solution.md`（对照 `{workspace}/problem.md`、`{workspace}/final_plan.md`，并审计 `{workspace}/scripts/builder/` 下的代码——只读，不运行）。
 你的验证脚本放 `{workspace}/scripts/evaluator/final/`（从 problem.md 独立转录）。

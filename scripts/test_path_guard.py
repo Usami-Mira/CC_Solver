@@ -99,6 +99,20 @@ with tempfile.TemporaryDirectory() as td:
                  role="orchestrator", cwd=ROOT)
     check("orchestrator relative tasks/ path resolved against workspace", rc == 0, f"rc={rc}")
 
+    print("-- false-positive fixes (devices, nonexistent paths, physics tokens) --")
+    rc, err = call("Bash", {"command": f"ls {ws}/calculation*.md 2>/dev/null || echo none"}, ws)
+    check("Bash 2>/dev/null allowed (device whitelist)", rc == 0, f"rc={rc} {err}")
+    rc, err = call("Bash", {"command": f"grep -q '/Gamma' {ws}/problem.md"}, ws)
+    check("Bash nonexistent /Gamma token allowed (physics symbol)", rc == 0, f"rc={rc} {err}")
+    rc, err = call("Bash", {"command": "head -1 /sin^2"}, ws)
+    check("Bash nonexistent /sin^2 token allowed", rc == 0, f"rc={rc} {err}")
+    rc, err = call("Bash", {"command": "cat /etc/passwd"}, ws)
+    check("Bash existing outside path still denied", rc == 2, f"rc={rc} {err}")
+    rc, err = call("Bash", {"command": "echo secret > /tmp/steal.txt"}, ws)
+    check("Bash redirect to nonexistent outside path denied (write direction)", rc == 2, f"rc={rc} {err}")
+    rc, err = call("Bash", {"command": f"echo ok > {ws}/debug/ok.txt"}, ws)
+    check("Bash redirect inside workspace allowed", rc == 0, f"rc={rc} {err}")
+
     print("-- Bash write-direction into read-only textbook --")
     TB = ROOT / "textbook"
     rc, _ = call("Bash", {"command": f"cat {TB / 'merged' / 'chunks_translated.json'} | head -5"}, ws)

@@ -44,6 +44,7 @@ REVISE → 回到 Builder（最多 {max_revisions} 次）
 
 ```markdown
 # Task planner
+说明：阅读题目并制定解题计划
 
 请阅读 `{workspace}/problem.md`，制定解题计划。
 将计划写入 `{workspace}/plan.md`。
@@ -53,6 +54,7 @@ REVISE → 回到 Builder（最多 {max_revisions} 次）
 
 ```markdown
 # Task builder
+说明：按计划执行完整求解，产出 solution.md
 
 请阅读 `{workspace}/problem.md` 和 `{workspace}/plan.md`，执行完整求解。
 将完整推导写入 `{workspace}/solution.md`，最终答案用 $\boxed{}$ 标注。
@@ -63,6 +65,7 @@ REVISE → 回到 Builder（最多 {max_revisions} 次）
 
 ```markdown
 # Task evaluator
+说明：独立审查 solution.md，给出 PASS/REVISE 裁决
 
 请审查 `{workspace}/solution.md`（对照 `{workspace}/problem.md`、`{workspace}/plan.md`，并审计 `{workspace}/scripts/builder/` 下的代码——只读，不运行）。
 你的验证脚本放 `{workspace}/scripts/evaluator/final/`（从 problem.md 独立转录）。

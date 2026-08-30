@@ -12,7 +12,8 @@ bash setup.sh --quick    # 跳过 pip/RAG，只验证配置与防偷看机制
 git 身份（`user.name`/`user.email` 缺失时提示配置，消除每次提交的身份告警）、
 API 配置（环境变量中已有则持久化到 `.env`，否则交互提示；`.env` 权限 600、已入
 `.gitignore`，`scripts/load_env.py` 在 run.py/spawn.py 启动时自动载入，已有环境变量优先）、
-`textbook/rag_env` 虚拟环境与依赖、path_guard 防偷看自检（工作区外访问必须被
+`textbook/rag_env` 虚拟环境与依赖、**bge-m3 嵌入模型自动下载（~2.3GB，默认 hf-mirror 镜像，可用 `HF_ENDPOINT` 覆盖）**、
+path_guard 防偷看自检（工作区外访问必须被
 exit(2) 硬拦截）、记忆目录状态、回归测试。任何一项失败会以非零码退出并标 ✗。
 
 ## CRITICAL: Directory Structure and Working Directory
@@ -80,7 +81,7 @@ cd textbook && rag_env/bin/python rag_build/query_rag.py "查询内容"
 - **RAG scripts**: `textbook/rag_build/`
   - `embed_bge.py` — Generate embeddings and store in Weaviate
   - `query_rag.py` — Query the physics textbook knowledge base
-- **Merged chunks**: `textbook/merged/chunks_translated.json` (1139 chunks)
+- **Merged chunks**: `textbook/merged/chunks_combined.json` (4069 chunks)
 
 ## Environment Variables
 
@@ -114,7 +115,7 @@ export HF_HUB_DISABLE_XET=1
 - **Debate**: 专家分析 → 辩论循环 → Secretary 写 Plan → Builder → Evaluator
 - **Tree Search**: Planner 展开搜索树（≥2 个结构不同分支，各含机器可检验收判据）→ Ephemeral Builder-Evaluator 逐支验证 → best-first 选择 + 死端回溯 → Verifier 审查方案 → Final Builder → Evaluator
 - **Adaptive**: Planner 自适应决策 → Ephemeral Builder-Evaluator → 动态调整 → Verifier 审查方案 → Final Builder → Evaluator
-- **Deep Search**: 审题找 crux → 发散生成 ≥3 个结构不同方向（各含验收判据 + 预测撞墙点）→ best-first 深挖 + 死端回溯 → 多专家辩论共识（思想碰撞提出创新点，可动议临时 Builder/Evaluator 解决分歧，Secretary 记录共识）→ Verifier 审查方案 → Final Builder → Evaluator。Planner 用专用版 `agents/planner_deep.md`（解除"一种方法"限制）；集其余结构之大成，难题默认
+- **Deep Search**: 单层专家团循环（Theorist/Computationalist/Experimentalist 提路线并写验证任务 → 临时 Builder-Evaluator 逐支执行 → Critic 判成熟 ∥ Secretary 增量汇总）→ 共识后 Verifier 单闸审查（REVISE = 打回专家团逐条修订，耗尽上限则运行终止、永不放行）→ Final Builder/Evaluator（三态：PASS/REVISE/FAIL；FAIL = 完全无出路，打回专家团重开；Final E 可申请临时 Standard 三连的子问题增援）。Planner 仅作临时子问题求解器出现；集其余结构之大成，难题默认
 
 Orchestrator 负责编排，通过 `scripts/spawn.py` 创建 sub-agent（每次 spawn 前后自动 git 快照）。
 
@@ -130,7 +131,7 @@ Orchestrator **只调度、不解题、不读题**。为防止上下文膨胀导
 - **通信通路**：每个 sub-agent 的最终消息被写入 `debug/.{Role}.result`，格式固定为 `HANDOFF` + `STATUS/VERDICT` + `OUTPUT` + `SUMMARY`（≤6 行）
 - **断点续传**：所有决策信息写进 `debug/.state`（key: value，auto-compact 后可恢复）；会话 ID 存 `debug/.orchestrator_session` / `debug/.{Role}.session`，超时/中断后自动 `claude --resume` 续接原会话
 - **Workspace 布局**：`debug/`（状态/日志/汇报）、`tasks/`（所有任务文件）、`scripts/{builder,evaluator,verifier}/<任务名>/`（各角色脚本互相隔离，Evaluator 从 problem.md 独立转录、只审计不运行 Builder 的脚本）
-- 验证任务文件 `tasks/task_{id}.md`（含物理细节）由 **Planner** 撰写；Orchestrator 只写不含物理内容的样板调度指令
+- 验证任务文件 `tasks/task_{id}.md`（含物理细节）由 **Planner**（deep_search 中由专家团成员）撰写；Orchestrator 只写不含物理内容的样板调度指令
 - **Git 快照在代码层自动完成**：`spawn.py` 每次 spawn 前后各提交一次（文件锁互斥，并行安全），Orchestrator 无需手动 commit
 - **记忆防火墙 + 路径封锁**：会话**不再用 `--bare`**（它会把 hooks 一并跳过，使封锁失效）。防"前世记忆"与偷看由两层保证：① `scripts/path_guard.py`（PreToolUse hook，由 `run.py` 写入每个工作区的 `.claude/settings.json`，`WORKSPACE` 环境变量激活）用 exit(2) 硬拦截 workspace 外的一切文件访问（Read/Write/Edit/Glob/Grep/Bash 全覆盖，symlink 按 realpath 解析、禁止嵌套启动 `claude`），审计写入 `debug/.path_guard.log`；② `scripts/memory_guard.py`（config: `memory_guard`，默认 `quarantine`）——Orchestrator 与 sub-agent 均以 workspace 为 cwd 运行，其 auto-memory 只落在**工作区专属记忆目录**（`~/.claude/projects/<workspace-slug>/memory/`）；pre_run 清空该目录、post_run 捕获期间写入并恢复基线。**主项目记忆目录（用户交互式会话所用）全程不触碰**，运行期间照常读写。审计写入 `debug/.memory_audit` 并附入 final_summary.md
 

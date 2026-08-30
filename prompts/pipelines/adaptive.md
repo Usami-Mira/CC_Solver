@@ -57,6 +57,7 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
 
 ```markdown
 # Task planner_{n}
+说明：自适应迭代第 {n} 轮——盘点进展，决定继续验证还是定稿
 
 请阅读以下文件，决定下一步：
 - `{workspace}/problem.md`
@@ -68,7 +69,7 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
 1. 更新 `{workspace}/strategy.md`（当前理解 + 下一步计划）
 2. 若最新一轮验证的结论应保留，将其要点追加到 `{workspace}/calculations_history.md`
 3. 二选一：
-   a. 还需要验证 → 写 `{workspace}/tasks/task_{id}.md`（完整验证任务，含所有物理细节；任务中注明结果写入 `{workspace}/calculation_{id}.md`、禁止写 `solution.md`）
+   a. 还需要验证 → 写 `{workspace}/tasks/task_{id}.md`（完整验证任务，含所有物理细节；标题后第一行写 `说明：<一句话目的>`；任务中注明结果写入 `{workspace}/calculation_{id}.md`、禁止写 `solution.md`）
    b. 理解已充分 → 写 `{workspace}/final_plan.md`（完整求解方案）
 ```
 
@@ -86,6 +87,7 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
 
 ```markdown
 # Task eval_{id}
+说明：独立复核 {id} 号验证任务的计算结果
 
 请审查 `{workspace}/calculation_{id}.md`（参考 `{workspace}/problem.md`，并审计 `{workspace}/scripts/builder/` 下的代码——只读，不运行）。
 你的验证脚本放 `{workspace}/scripts/evaluator/task_eval_{id}/`（从 problem.md 独立转录）。
@@ -107,6 +109,7 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
 
 ```markdown
 # Task verifier
+说明：审查定稿方案 final_plan.md，输出 SOUND 或 REVISE
 
 请审查 `{workspace}/final_plan.md`（对照 `{workspace}/problem.md`；如需上下文可读 `{workspace}/strategy.md` 和已有的计算/验证记录）。
 抽查脚本（如有）放 `{workspace}/scripts/verifier/`。
@@ -118,7 +121,7 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
 - `SOUND` → 更新 `debug/.state`，进入阶段 3（Final Builder）
 - `REVISE` 且 `debug/.state` 中尚无 `verify_round`（第一次）：
   1. 更新 `debug/.state`：`verify_round: 1`
-  2. 写样板 `tasks/task_planner_{n}.md`（`{n}` 为下一个迭代编号），内容在迭代样板基础上把第 3 条换成一句：「请阅读 `{workspace}/verification_plan.md` 中的问题清单，针对性修订 `{workspace}/final_plan.md`，完成后按原格式汇报 `STATUS: DONE`。」
+  2. 写样板 `tasks/task_planner_{n}.md`（`{n}` 为下一个迭代编号），内容在迭代样板基础上把说明行与第 3 条换成：「说明：按 Verifier 问题清单修订 final_plan.md。请阅读 `{workspace}/verification_plan.md` 中的问题清单，针对性修订 `{workspace}/final_plan.md`，完成后按原格式汇报 `STATUS: DONE`。」
   3. `spawn.py Planner {workspace} agents/planner task_planner_{n}`，读 `debug/.Planner.result`；`STATUS: DONE` 则回到本阶段重新验证（`STATUS: VERIFY/FAIL` 则按迭代路由处理）
 - `REVISE` 且 `debug/.state` 已有 `verify_round: 1`（第二次）：**直接放行进入阶段 3**——在 `debug/.state` 记录 `last_verdict: REVISE` 后继续，不再循环
 
@@ -128,6 +131,7 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
 
 ```markdown
 # Task final_builder
+说明：按定稿方案执行完整求解，产出 solution.md
 
 请阅读 `{workspace}/problem.md` 和 `{workspace}/final_plan.md`，执行完整求解。
 将完整推导写入 `{workspace}/solution.md`，最终答案用 $\boxed{}$ 标注。
@@ -136,6 +140,7 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
 
 ```markdown
 # Task final_evaluator
+说明：最终审查 solution.md，输出 PASS 或 REVISE
 
 请审查 `{workspace}/solution.md`（对照 `{workspace}/problem.md`、`{workspace}/final_plan.md`，并审计 `{workspace}/scripts/builder/` 下的代码——只读，不运行）。
 你的验证脚本放 `{workspace}/scripts/evaluator/final/`（从 problem.md 独立转录）。

@@ -68,12 +68,13 @@
 
 ### 阶段 1：专家并行独立分析
 
-写三个样板任务到 `{workspace}/tasks/`（仅角色与输出文件名不同），并行 spawn（Bash `&` + `wait`；spawn.py 的自动快照用文件锁互斥，并行安全）：
+写三个样板任务到 `{workspace}/tasks/`（仅角色与输出文件名不同），并行 spawn——**「`&` 派发 + 轮询等待」规范模式**（总则见通用编排器「并行 spawn 与轮询等待」节；等待期间你的每一次回应都必须是 Bash 工具调用，输出纯文本会立即终止会话并害死后台专家）：
 
 `task_theorist.md`：
 
 ```markdown
 # Task theorist
+说明：从理论视角分析题目，产出 theorist.md
 
 请阅读 `{workspace}/problem.md`，进行理论分析。
 将分析写入 `{workspace}/theorist.md`。
@@ -85,8 +86,10 @@
 python3 {project_root}/scripts/spawn.py Theorist {workspace} agents/theorist task_theorist.md &
 python3 {project_root}/scripts/spawn.py Computationalist {workspace} agents/computationalist task_computationalist.md &
 python3 {project_root}/scripts/spawn.py Experimentalist {workspace} agents/experimentalist task_experimentalist.md &
-wait
+echo SPAWNED
 ```
+
+然后按规范模式轮询等待（角色名 `Theorist Computationalist Experimentalist`，重复执行轮询调用直到 `ALL_READY`），再进入阶段 2。
 
 ### 阶段 2：辩论循环（第 $n$ 轮，最多 {max_rounds} 轮）
 
@@ -94,6 +97,7 @@ wait
 
 ```markdown
 # Task critic_{n}
+说明：第 {n} 轮辩论——批评三份专家分析
 
 请阅读 `{workspace}/problem.md`、`{workspace}/theorist.md`、`{workspace}/computationalist.md`、`{workspace}/experimentalist.md`。
 将批评写入 `{workspace}/critic_round_{n}.md`。
@@ -101,12 +105,13 @@ wait
 
 **收敛判断**：读 `debug/.Critic.result` 的 SUMMARY（含 `Critical: X, Major: Y` 计数）。若 Critical 为 0，跳过回应与后续轮次，直接进入阶段 3；否则继续。
 
-专家回应（三个角色可并行），样板任务以 Theorist 为例：
+专家回应（三个角色可并行，按「并行 spawn 与轮询等待」规范模式），样板任务以 Theorist 为例：
 
 `task_theorist_respond_{n}.md`：
 
 ```markdown
 # Task theorist_respond_{n}
+说明：第 {n} 轮——Theorist 回应批评并更新分析
 
 请阅读 `{workspace}/problem.md`、`{workspace}/critic_round_{n}.md` 和你此前的分析 `{workspace}/theorist.md`。
 回应批评，原地更新 `{workspace}/theorist.md`。
@@ -118,6 +123,7 @@ wait
 
 ```markdown
 # Task secretary_{n}
+说明：记录第 {n} 轮辩论要点
 
 请阅读 `{workspace}/problem.md`、三份专家分析（最新版本）和 `{workspace}/critic_round_{n}.md`。
 将第 {n} 轮辩论记录写入 `{workspace}/debate_summary_round_{n}.md`。
@@ -131,6 +137,7 @@ Secretary 的 `debug/.Secretary.result` 中 `OUTPUT` 应为 `debate_summary_roun
 
 ```markdown
 # Task secretary_final
+说明：综合辩论共识，撰写最终解题计划 final_plan.md
 
 请阅读 `{workspace}/problem.md`、三份专家分析（最终版本）、所有 `critic_round_*.md` 和所有 `debate_summary_round_*.md`。
 综合共识，将最终解题计划写入 `{workspace}/final_plan.md`。

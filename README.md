@@ -12,7 +12,7 @@
 | **Debate** | 3×专家（理论/计算/实验）辩论 → Secretary 综合 → Builder → Evaluator | 复杂问题，需要多角度分析 |
 | **Tree Search** | Planner 展开搜索树（≥2 分支 + 验收判据）→ Ephemeral Builder-Evaluator 逐支验证 → best-first 选择 + 死端回溯 → Verifier 审查方案 → Final Builder → Evaluator | 多条结构不同路线竞争、易撞死端的题 |
 | **Adaptive** | Planner 自适应决策 → Ephemeral Builder-Evaluator 验证 → 动态调整 → Verifier 审查方案 → Final Builder → Evaluator | 需要逐步验证和策略调整的问题 |
-| **Deep Search** | 审题找 crux → 发散生成 ≥3 个结构不同方向（验收判据 + 预测撞墙点）→ best-first 深挖 + 回溯 → **多专家辩论共识**（可动议临时 Builder/Evaluator 解决分歧，Secretary 记录共识）→ Verifier → Final Builder → Evaluator（集大成，Planner 用解除"一种方法"限制的专用版） | **难题默认**：crux 不明、易撞死端、方案须经多视角碰撞 |
+| **Deep Search** | **专家团循环**（Theorist/Computationalist/Experimentalist 提路线并写验证任务 → 临时 Builder-Evaluator 逐支执行 → Critic 判成熟 ∥ Secretary 增量汇总）→ Verifier 单闸审查（REVISE = 打回专家团逐条修订，耗尽则终止、永不放行）→ Final Builder/Evaluator（三态：FAIL = 无出路打回专家团重开；Final E 可申请临时 Standard 三连的子问题增援） | **难题默认**：crux 不明、易撞死端、方案须经多视角碰撞 |
 
 每道题支持断点续传：状态文件 + `claude --resume` 会话续接双重保障，中断后可自动从上次进度继续。系统使用 Git 自动追踪解题过程的完整演变（逐阶段快照在代码层自动完成），支持查看每个阶段的变更历史和版本对比。
 
@@ -40,7 +40,8 @@ setup.sh 依次处理（幂等，可重复运行；能交互的条目都支持�
    已 export 的环境变量始终优先。按量计费/第三方网关（如硅基流动）用户
    在此步填入 key 与 Base URL 即可
 4. **RAG 环境**：创建 `textbook/rag_env` 虚拟环境并安装全部依赖
-   （PyTorch、FlagEmbedding、Weaviate 客户端等）
+   （PyTorch、FlagEmbedding、Weaviate 客户端等），**自动下载 bge-m3 嵌入模型
+   （~2.3GB，默认走 hf-mirror 国内镜像，可用 `HF_ENDPOINT` 覆盖）**
 5. **自检与回归测试**：path_guard 防偷看封锁自检、记忆防火墙状态、单元/回归测试
 
 任何一项失败都会以非零码退出并用 ✗ 标出。
@@ -76,7 +77,7 @@ problems/
 
 ```json
 {
-  "pipeline": "standard",
+  "pipeline": "adaptive",
   "max_concurrent_problems": 3,
   "max_disputes": 2,
   "memory_guard": "quarantine",
@@ -84,8 +85,8 @@ problems/
   "configs": {
     "standard": {
       "model": "qwen3.6-plus",
-      "timeout_seconds": 600,
-      "max_revisions": 2,
+      "timeout_seconds": 3600,
+      "max_revisions": 8,
       "agent_models": {
         "Planner": "qwen3.6-plus",
         "Builder": "qwen3.6-plus",
@@ -95,12 +96,13 @@ problems/
 
     "adaptive": {
       "model": "qwen3.6-plus",
-      "timeout_seconds": 600,
-      "max_iterations": 15,
-      "max_revisions": 2,
-      "ephemeral_timeout": 300,
+      "timeout_seconds": 86400,
+      "max_iterations": 25,
+      "max_revisions": 8,
+      "calculation_timeout": 600,
       "agent_models": {
         "Planner": "qwen3.6-plus",
+        "Verifier": "qwen3.6-plus",
         "Builder": "qwen3.6-plus",
         "Evaluator": "qwen3.6-plus"
       }
@@ -111,12 +113,18 @@ problems/
       "timeout_seconds": 864000,
       "max_iterations": 20,
       "max_revisions": 8,
-      "max_rounds": 3,
       "max_motions": 6,
+      "max_verify_rounds": 3,
+      "max_subtasks": 3,
       "ephemeral_timeout": 6000,
       "deep_timeout": 18000,
       "agent_models": {
         "Planner": "qwen3.6-plus",
+        "Theorist": "qwen3.6-plus",
+        "Computationalist": "qwen3.6-plus",
+        "Experimentalist": "qwen3.6-plus",
+        "Critic": "qwen3.6-plus",
+        "Secretary": "qwen3.6-plus",
         "Verifier": "qwen3.6-plus",
         "Builder": "qwen3.6-plus",
         "Evaluator": "qwen3.6-plus"
@@ -142,12 +150,14 @@ problems/
 | `model` | 所有 | 默认使用的模型名 |
 | `timeout_seconds` | 所有 | 单次调用的最大超时时间（秒） |
 | `max_revisions` | 所有 | Builder-Evaluator 循环的最大修正次数 |
-| `max_iterations` | iterative, tree_search, adaptive, deep_search | 迭代循环的最大次数 |
-| `max_rounds` | debate, deep_search | 辩论轮数 |
-| `max_motions` | deep_search | 辩论期间动议（临时 Builder/Evaluator）总数上限 |
+| `max_iterations` | iterative, tree_search, adaptive, deep_search | 迭代循环的最大次数（deep_search = 专家团循环轮数） |
+| `max_rounds` | debate | 辩论轮数 |
+| `max_motions` | deep_search | 专家团动议（临时 Builder/Evaluator）总数上限 |
+| `max_verify_rounds` | deep_search | Verifier 打回轮数上限；耗尽仍 REVISE 则运行终止、永不放行 |
+| `max_subtasks` | deep_search | Final Evaluator 子问题增援（临时 Standard 三连）总数上限 |
 | `num_planners` | parallel | 并行 Planner 数量 |
-| `ephemeral_timeout` | tree_search, adaptive, deep_search | 临时 Builder/Evaluator（deep_search 还包括动议执行、辩论轮次记录）超时（秒） |
-| `deep_timeout` | deep_search | Planner 深度思考、辩论专家发言、共识定稿的超时（秒） |
+| `ephemeral_timeout` | tree_search, adaptive, deep_search | 临时 Builder/Evaluator（deep_search 还包括动议执行、子问题三连、轮次记录）超时（秒） |
+| `deep_timeout` | deep_search | 专家团发言、Critic、Secretary、Verifier、定稿与打回修订的超时（秒） |
 | `agent_models` | 所有 | 为不同 Agent 配置不同模型 |
 
 ## 运行
@@ -171,7 +181,7 @@ python3 scripts/run.py problems/example_single --pipeline deep_search
 
 | 题目类型 | 推荐 Pipeline | 理由 |
 |----------|--------------|------|
-| 难题/前沿问题（默认） | `deep_search` | 审题找 crux + ≥3 结构不同方向发散 + 深挖回溯 + 多专家辩论共识，集所有结构之大成 |
+| 难题/前沿问题（默认） | `deep_search` | 专家团循环（发散 + 深挖 + 共识收敛）+ Verifier 单闸打回 + 终审三态，集所有结构之大成 |
 | 常规计算题 | `standard` | 简单直接，资源消耗最少 |
 | 多解法题目 | `parallel` | 并行探索多种思路，选最优 |
 | 开放性探究 | `iterative` | 假设-验证循环，逐步逼近 |
@@ -258,6 +268,7 @@ git diff HEAD~2 solution.md
 - **超时设置**：复杂题目可能耗时较长，`timeout_seconds` 建议设大一些。如果中途中断，下次运行会自动从断点续传。
 - **模型选择**：推荐使用推理能力较强的模型，弱模型在物理推导上可能出错。
 - **题目格式**：`problem.md` 建议使用纯文本或 Markdown，包含题目描述、已知条件和待求量。如果题目含图片，可在 Markdown 中用文字描述图片内容。
+- **项目目录搬移**：Python venv 不可重定位——移动或复制项目目录后，若 `textbook/rag_env` 报错，删除该目录重跑 `bash setup.sh` 即可（模型已下载则不会重复下载）。
 
 ## 项目结构
 
@@ -486,9 +497,9 @@ python3 scripts/spawn.py Planner problems/example --tools "Read,Write,Bash"
 | 2. 公式修正 | `fix_formulas.py` | LLM 纠正 OCR 公式错误 |
 | 3. 图片上下文 | `extract_image_context.py` | 提取图文关联 |
 | 4. 合并分卷 | `batch_parse.py` | 多 part → 单文件 Markdown |
-| 5. 文本分块 | `rag_build/chunk_markdown.py` | 按章节切分为 1139 个语义块 |
-| 6. 翻译 | `rag_build/translate_chunks.py` | Qwen 3.6 Flash 中英双语（20 并发） |
-| 7. 向量嵌入 | `rag_build/embed_bge.py` | BGE-base-en-v1.5 → Weaviate |
+| 5. 文本分块 | `rag_build/chunk_markdown.py` | 按章节切分为 4069 个语义块（`merged/chunks_combined.json`） |
+| 6. 翻译 | `rag_build/translate_chunks.py` | Qwen 3.6 Flash 中英双语（20 并发）（历史步骤；BGE-M3 原生支持中文，当前嵌入不再依赖译文） |
+| 7. 向量嵌入 | `rag_build/embed_bge.py` | BGE-M3 → Weaviate |
 
 ### 技术选型
 
@@ -496,9 +507,9 @@ python3 scripts/spawn.py Planner problems/example --tools "Read,Write,Bash"
 |------|------|------|
 | OCR | MinerU Web API | 结构化输出，支持公式和图片 |
 | 翻译 | Qwen 3.6 Flash | 快速、物理术语准确 |
-| 嵌入模型 | BGE-base-en-v1.5 | 768维，语义检索效果好 |
+| 嵌入模型 | BGE-M3 | 1024维，原生支持中英双语 |
 | 向量数据库 | Weaviate Embedded | 无需 Docker，本地持久化 |
 
 ### 数据说明
 
-原始 PDF、OCR 输出、合并后的 Markdown、图片和嵌入模型文件均通过 `.gitignore` 排除，不纳入版本管理。构建好的 Weaviate 数据库（`weaviate_data/`，61MB）直接包含在仓库中，clone 后即可使用。如需从头重建知识库，按上表步骤依次运行即可。
+原始 PDF、OCR 输出、合并后的 Markdown 和图片通过 `.gitignore` 排除。构建好的 Weaviate 数据库（`weaviate_data/`，74MB，4069 块）与嵌入源数据（`merged/chunks_combined.json`）直接包含在仓库中，clone 后即可使用。嵌入模型（`models/bge-m3/`，~2.3GB）不入仓库，由 `setup.sh` 自动下载（默认走 hf-mirror 国内镜像；能直连 huggingface.co 的环境先 `export HF_ENDPOINT=https://huggingface.co`）。注意：Weaviate Embedded 首次运行需从 GitHub 下载服务端二进制（~125MB）到 `~/.cache/weaviate-embedded/`，网络受限可手动下载放置。如需从头重建知识库，按上表步骤依次运行即可。
