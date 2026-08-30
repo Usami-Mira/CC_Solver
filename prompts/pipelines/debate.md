@@ -89,7 +89,7 @@ python3 {project_root}/scripts/spawn.py Experimentalist {workspace} agents/exper
 echo SPAWNED
 ```
 
-然后按规范模式轮询等待（角色名 `Theorist Computationalist Experimentalist`，重复执行轮询调用直到 `ALL_READY`），再进入阶段 2。
+然后按规范模式轮询等待（文件清单列出 `debug/.Theorist_task_theorist.result`、`.Computationalist_task_computationalist.result`、`.Experimentalist_task_experimentalist.result`；重复执行轮询调用直到全部 `READY`），再进入阶段 2。
 
 ### 阶段 2：辩论循环（第 $n$ 轮，最多 {max_rounds} 轮）
 
@@ -103,9 +103,9 @@ echo SPAWNED
 将批评写入 `{workspace}/critic_round_{n}.md`。
 ```
 
-**收敛判断**：读 `debug/.Critic.result` 的 SUMMARY（含 `Critical: X, Major: Y` 计数）。若 Critical 为 0，跳过回应与后续轮次，直接进入阶段 3；否则继续。
+**收敛判断**：读 `debug/.Critic_task_critic_{n}.result` 的 SUMMARY（含 `Critical: X, Major: Y` 计数）。若 Critical 为 0，跳过回应与后续轮次，直接进入阶段 3；否则继续。
 
-专家回应（三个角色可并行，按「并行 spawn 与轮询等待」规范模式），样板任务以 Theorist 为例：
+专家回应（三个角色可并行，按「并行 spawn 与轮询等待」规范模式，轮询清单列出 `debug/.<Role>_task_<role>_respond_{n}.result` 三个文件），样板任务以 Theorist 为例：
 
 `task_theorist_respond_{n}.md`：
 
@@ -129,7 +129,7 @@ echo SPAWNED
 将第 {n} 轮辩论记录写入 `{workspace}/debate_summary_round_{n}.md`。
 ```
 
-Secretary 的 `debug/.Secretary.result` 中 `OUTPUT` 应为 `debate_summary_round_{n}.md`；确认后进入下一轮或阶段 3。
+Secretary 的 `debug/.Secretary_task_secretary_{n}.result` 中 `OUTPUT` 应为 `debate_summary_round_{n}.md`；确认后进入下一轮或阶段 3。
 
 ### 阶段 3：Secretary 撰写最终 Plan
 
@@ -143,7 +143,7 @@ Secretary 的 `debug/.Secretary.result` 中 `OUTPUT` 应为 `debate_summary_roun
 综合共识，将最终解题计划写入 `{workspace}/final_plan.md`。
 ```
 
-Secretary 的 `debug/.Secretary.result` 中 `OUTPUT` 为 `final_plan.md` → 进入阶段 4。
+Secretary 的 `debug/.Secretary_task_secretary_final.result` 中 `OUTPUT` 为 `final_plan.md` → 进入阶段 4。
 
 ### 阶段 4 / 5：Builder / Evaluator
 

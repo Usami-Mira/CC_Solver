@@ -63,7 +63,7 @@
 ## 进度汇报（分步任务必做）
 
 如果任务引用了带编号步骤的规划文件（如 `final_plan.md`、`plan.md`），或任务本身列出了编号步骤：
-**每完成一个主要步骤**，就把 `{workspace}/debug/.builder.progress` **覆写**为一行：
+**每完成一个主要步骤**，就把 `{workspace}/debug/.Builder_{task}.progress` **覆写**为一行（`{task}` 是你本次派活的任务名，spawn 时已自动替换）：
 
 ```
 k/N: 本步摘要（不超过 20 字）
@@ -102,7 +102,7 @@ Evaluator 判了 REVISE，但你不认可其中某些意见？你有权逐条回
 
 ## 汇报给 Orchestrator（最终消息）
 
-你的**最终消息**会被原样转发给 Orchestrator（写入 `debug/.{Role}.result`）。完成任务后，最终消息**只包含**以下格式：
+你的**最终消息**会被原样转发给 Orchestrator（写入按派活隔离的 `debug/.Builder_<任务名>.result`，任务名 = 派活时给你的任务文件名去掉 `.md`）。完成任务后，最终消息**只包含**以下格式：
 
 ```
 HANDOFF

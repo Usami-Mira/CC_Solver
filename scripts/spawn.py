@@ -8,13 +8,19 @@ Usage:
 - **代码级阶段快照**：每次派活前、产出结果后自动 `git add -A && git commit`
   （任务文件、.state、Agent 产出全部入库，不依赖 Orchestrator 自觉）。
   并行 pipeline 会同时跑多个 spawn.py，用 flock 互斥。
-- **断点续传**：每个子 Agent 的 session_id 记录在 `debug/.<role>.session`；
+- **断点续传**：每个子 Agent 的 session_id 记录在 `debug/` 的 `.session` 文件；
   带 `--resume` 时续接上次会话（用于超时/中断后重派），不带则全新开始（失败重做）。
-- **Workspace 布局**：运行时文件（.log/.result/.metrics/.session/.progress）在 `debug/`，
-  任务文件在 `tasks/`（向后兼容：根目录的任务文件也能找到）。
+- **运行时文件隔离**：`.log/.result/.metrics/.session/.progress` 在 `debug/`。
+  新版 run.py 启动的会话设置 `SPAWN_RUNTIME_BY_TASK=1`，运行时文件按
+  (Role, 任务名) 隔离为 `.{Role}_{任务名}.*` —— 同角色并行派活互不覆盖
+  （旧方案按角色命名，靠禁止同角色并行回避冲突）；未设置该环境变量时
+  退回按角色的 `.{Role}.*` 命名（过渡期兼容）。
+- **自动心跳**：泵流时把 sub-Agent 的每个工具调用覆写进 `.progress`
+  （Agent 自己写 k/N 进度时让位）——进度播报不再依赖模型自觉。
+- **Workspace 布局**：任务文件在 `tasks/`（向后兼容：根目录的任务文件也能找到）。
 """
 
-import sys, os, json, fcntl, signal, subprocess, threading, time
+import sys, os, re, json, fcntl, signal, subprocess, threading, time
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).parent.resolve()
@@ -35,6 +41,107 @@ TIMEOUT = PIPELINE_CONFIG.get("timeout_seconds", CONFIG.get("timeout_seconds", 6
 
 DEBUG_DIR = "debug"
 TASKS_DIR = "tasks"
+
+# 分支/路线 → 颜色：并行多路线时按任务键稳定着色，多路同跑一眼可辨。
+# 索引用稳定的字符串哈希（内建 hash 每进程随机，跨进程会串色）。
+BRANCH_COLORS = ["36", "33", "35", "32", "34", "31"]
+
+ANSI_RE = re.compile(r"\033\[[0-9;]*m")
+
+
+def branch_color(key):
+    h = 0
+    for ch in key:
+        h = (h * 31 + ord(ch)) % 1000000007
+    return BRANCH_COLORS[h % len(BRANCH_COLORS)]
+
+
+# 家务命令（读文件/状态查询/文件系统操作/shell 控制结构）——不上屏
+HOUSEKEEPING_RE = re.compile(
+    r"^(ls|cat|head|tail|wc|grep|find|echo|printf|pwd|git|sleep|cd|rm|mkdir|"
+    r"mv|cp|touch|chmod|for|while|until|if|then|else|fi|do|done|wait|true"
+    r"|seq|test|kill|ps|diff|sort|uniq|tr|cut|sed|awk|xargs|tee|date"
+    r"|export|set|read|basename|dirname|realpath|stat|file|md5sum|sha256sum"
+    r"|tar|zip|unzip)\b")
+
+
+def describe_bash(cmd):
+    """Bash 命令 → 人类可读的文字描述。返回 None 表示该命令不上屏（家务命令）。
+
+    在 && / || / ; 链上**从后往前**找第一个非家务段作为主动作：
+    "cd x && python3 y.py" → 运行脚本 y.py；"python3 x.py && echo DONE"
+    → 运行脚本 x.py；"for i in ...; do sleep 15; done" → 全段家务 → None。
+    """
+    if not cmd or not cmd.strip():
+        return None
+    if re.match(r"^\s*[\[\(!]", cmd):   # 条件测试/子 shell 开头的控制结构
+        return None
+    segs = re.split(r"\s*(?:&&|\|\||;)\s*", cmd.strip())
+    last = ""
+    for seg in reversed(segs):
+        seg = seg.strip()
+        if seg and not HOUSEKEEPING_RE.match(seg) and not re.match(r"^[\[\(!]", seg):
+            last = seg
+            break
+    if not last:
+        return None
+    m = re.match(r"(?:[A-Za-z_][\w/.-]*/)?python3?\s+(\S+)", last)
+    if m:
+        arg = m.group(1)
+        if arg.startswith("-"):          # python3 -c / python3 -
+            return "运行内联 Python"
+        script = os.path.basename(arg)
+        if "query_rag" in script:
+            return "查询知识库"
+        return f"运行脚本 {script}"
+    words = last.split()
+    if words and words[0] in ("bash", "sh", "source") and len(words) > 1:
+        return f"运行脚本 {os.path.basename(words[1])}"
+    head = words[0] if words else ""
+    if re.fullmatch(r"[\w./-]+", head):
+        return f"执行 {os.path.basename(head)}"
+    return f"执行命令 {last[:50]}"
+
+
+def append_console(feed, text):
+    """把一行（去色后）追加进工作区可见的 console.log（用户随时可看）。"""
+    path = feed.get("console_file") if feed else None
+    if not path or not text:
+        return
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%m-%d %H:%M:%S')}] "
+                    f"{ANSI_RE.sub('', text)}\n")
+    except OSError:
+        pass
+
+
+def agent_event_line(role, branch, summary, workspace_abs=""):
+    """把 sub-Agent 的一个工具调用渲染成控制台行（带路线颜色）。
+
+    返回 "" 表示不上屏（读文件、家务命令、workspace 内写文档——
+    脚本创建除外，它单独以"写脚本 …"上屏）。
+    """
+    text = ""
+    if summary.startswith("Bash: "):
+        cmd = summary[6:].splitlines()[0][:150] if summary[6:] else ""
+        desc = describe_bash(cmd)
+        if desc is None:
+            return ""
+        text = desc
+    elif summary.startswith(("Write: ", "Edit: ")):
+        path = summary.split(": ", 1)[1]
+        base = os.path.basename(path)
+        if base.endswith(".py"):
+            text = f"写脚本 {base}"
+        elif workspace_abs and path.startswith(workspace_abs):
+            return ""   # workspace 内的 md/进度文件等：不上屏（结论看产出即可）
+        else:
+            text = summary[:100]
+    else:
+        return ""
+    color = branch_color(branch or role)
+    return f"\033[1;{color}m[{role}·{branch}]\033[0m {text}"
 
 # Per-agent permission profiles
 # Format: Claude Code --allowed-tools values
@@ -63,6 +170,7 @@ AGENT_PROFILES = {
     "Experimentalist": _STANDARD_PROFILE,
     "Critic": _STANDARD_PROFILE,
     "Secretary": _STANDARD_PROFILE,
+    "Assessor": _STANDARD_PROFILE,
 }
 
 
@@ -157,13 +265,41 @@ def resolve_task_file(workspace, task_file):
     return task_file
 
 
-def run_session(cmd, log_file, timeout_sec, env, cwd):
+def task_key_of(task_file_abs):
+    """任务键：任务文件基名去掉 .md，只保留文件名字符（运行时文件的隔离键）。"""
+    base = os.path.basename(str(task_file_abs))
+    base = re.sub(r"\.md$", "", base, flags=re.IGNORECASE)
+    base = re.sub(r"[^A-Za-z0-9_-]", "_", base)
+    return base or "task"
+
+
+def runtime_paths(debug_dir, role, task_file_abs, keyed):
+    """一次派活的运行时文件集合。
+
+    keyed=True（新版 run.py 设置 SPAWN_RUNTIME_BY_TASK=1）：
+      按 (Role, 任务名) 隔离 —— `.{Role}_{任务名}.log/.result/...`，
+      同角色并行派活各写各的，互不覆盖。
+    keyed=False（旧会话续传等过渡场景）：按角色命名 `.{Role}.*`。
+    """
+    stem = f".{role}_{task_key_of(task_file_abs)}" if keyed else f".{role}"
+    return {name: os.path.join(debug_dir, stem + ext) for name, ext in (
+        ("log", ".log"), ("result", ".result"), ("metrics", ".metrics"),
+        ("session", ".session"), ("progress", ".progress"))}
+
+
+def run_session(cmd, log_file, timeout_sec, env, cwd, progress_path=None, feed=None):
     """启动一次 claude 会话并泵送流式输出。
 
     返回 (result_event, session_id, error)：
     - 正常：(event, sid, None)
     - 超时：(None, sid|None, "timeout after Ns")
     - 其他异常：(None|event, sid|None, 错误描述)
+
+    progress_path 非空时，把观察到的每个工具调用覆写进该文件作为心跳
+    （进度播报由此保证，不再依赖 Agent 自觉）；一旦发现 Agent 自己在写
+    进度文件（说明它遵守 k/N 进度协议），让位、停止覆写。
+    feed 非空时（{role, branch, workspace_abs}），sub-Agent 的脚本创建与
+    真正的计算命令直接上屏（带路线颜色）——监控关注的是 sub-Agent 层。
     """
     # start_new_session=True：子进程自成进程组，必要时可整组杀掉
     # （claude 常派生后台子进程；若有孤儿进程卡住，claude 本体不退出）。
@@ -175,6 +311,8 @@ def run_session(cmd, log_file, timeout_sec, env, cwd):
 
     result_event = None
     session_id = None
+    progress_name = os.path.basename(progress_path) if progress_path else None
+    agent_writes_progress = [False]
 
     def pump_stdout():
         nonlocal result_event, session_id
@@ -188,6 +326,22 @@ def run_session(cmd, log_file, timeout_sec, env, cwd):
             if summary:
                 log_file.write(f"[{etype}] {summary}\n")
                 log_file.flush()
+                if etype == "tool_use":
+                    if feed:
+                        line = agent_event_line(feed["role"], feed["branch"], summary,
+                                                feed.get("workspace_abs", ""))
+                        if line:
+                            print(line, flush=True)
+                            append_console(feed, line)
+                    if progress_path:
+                        if progress_name and progress_name in summary:
+                            agent_writes_progress[0] = True
+                        elif not agent_writes_progress[0]:
+                            try:
+                                with open(progress_path, "w", encoding="utf-8") as pf:
+                                    pf.write(summary[:50] + "\n")
+                            except OSError:
+                                pass
             if etype == "result" and event:
                 result_event = event
                 return  # 拿到结果即返回，不等 EOF（进程可能被孤儿子进程卡住而不退出）
@@ -275,10 +429,12 @@ def main():
 
     system_prompt = open(prompt_file_abs, encoding="utf-8").read()
     # 模板变量：{project_root} 永远替换（移植性）；{workspace} 用绝对路径
-    # 替换（下面会把 cwd 改成 workspace）
+    # 替换（下面会把 cwd 改成 workspace）；{task} 用任务键替换
+    # （供 agent prompt 里的按派活隔离路径使用，如进度文件名）。
     system_prompt = system_prompt.replace("{project_root}", str(PROJECT_ROOT))
     if workspace:
         system_prompt = system_prompt.replace("{workspace}", workspace_abs)
+    system_prompt = system_prompt.replace("{task}", task_key_of(task_file_abs))
     task = open(task_file_abs, encoding="utf-8").read()
     if workspace:
         task += f"\n\n**重要：** 所有文件操作必须在 `{workspace_abs}` 目录内进行，不要在项目根目录创建文件。"
@@ -307,18 +463,27 @@ def main():
     ]
     cmd_fresh = base_cmd + [task]
 
-    # 运行时文件（全部在 debug/ 下）
-    log_path = os.path.join(debug_dir, f".{role}.log")
-    result_path = os.path.join(debug_dir, f".{role}.result")
-    metrics_path = os.path.join(debug_dir, f".{role}.metrics")
-    session_path = os.path.join(debug_dir, f".{role}.session")
-    progress_path = os.path.join(debug_dir, f".{role}.progress")
+    # 运行时文件（全部在 debug/ 下）。新版 run.py 设置 SPAWN_RUNTIME_BY_TASK=1
+    # 时按 (Role, 任务名) 隔离——同角色并行派活各写各的，互不覆盖；
+    # 未设置（旧会话续传的过渡期）退回按角色命名。
+    task_keyed = bool(os.environ.get("SPAWN_RUNTIME_BY_TASK"))
+    paths = runtime_paths(debug_dir, role, task_file_abs, task_keyed)
+    log_path = paths["log"]
+    result_path = paths["result"]
+    metrics_path = paths["metrics"]
+    session_path = paths["session"]
+    progress_path = paths["progress"]
 
-    # 清理过期进度文件（进度是瞬态监控信息，不是审计记录，可删）
-    try:
-        os.remove(progress_path)
-    except OSError:
-        pass
+    # 清理过期进度文件（进度是瞬态监控信息，不是审计记录，可删）。
+    # 旧命名有大小写两套（prompt 让 Agent 写小写 .{role}.progress），都要清。
+    stale_progress = [progress_path]
+    if not task_keyed:
+        stale_progress.append(os.path.join(debug_dir, f".{role.lower()}.progress"))
+    for p in stale_progress:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
 
     # 清理上一次派活遗留的 .result/.metrics：Orchestrator 的轮询等待与断点续传
     # 以「.result 存在」作为「本次派活已完成」的信号，陈旧汇报会造成误判完成。
@@ -344,6 +509,10 @@ def main():
     result_event = None
     session_id = None
     err = None
+    feed = {"role": role, "branch": task_key_of(task_file_abs),
+            "workspace_abs": workspace_abs,
+            "console_file": os.path.join(workspace_abs, "console.log")
+            if workspace_abs else ""}
 
     with open(log_path, "a", encoding="utf-8") as log_file:
         # --resume：若存在上次会话记录，先尝试续接；失败（非超时）则回退全新会话
@@ -360,11 +529,12 @@ def main():
             log_file.flush()
             result_event, session_id, err = run_session(
                 base_cmd + ["--resume", resume_sid, resume_prompt],
-                log_file, timeout, env, cwd)
+                log_file, timeout, env, cwd, progress_path, feed)
             if err:
                 if err.startswith("timeout"):
                     # 超时不重试（重开会话会丢失已完成进度，交由上层决策）
                     print(f"[spawn:{role}] error: {err}")
+                    append_console(feed, f"[{role}·{task_key_of(task_file_abs)}] 超时（{timeout}s），交由 Orchestrator 决策")
                     if session_id:
                         open(session_path, "w", encoding="utf-8").write(session_id)
                     write_failure_result(result_path, role, err)
@@ -377,7 +547,8 @@ def main():
         if result_event is None:
             log_file.write(f"\n===== [start] {role} | task={task_file} | {time.strftime('%H:%M:%S')} =====\n")
             log_file.flush()
-            result_event, session_id, err = run_session(cmd_fresh, log_file, timeout, env, cwd)
+            result_event, session_id, err = run_session(
+                cmd_fresh, log_file, timeout, env, cwd, progress_path, feed)
 
         if session_id:
             try:
@@ -389,6 +560,7 @@ def main():
 
         if err or result_event is None:
             print(f"[spawn:{role}] error: {err}")
+            append_console(feed, f"[{role}·{task_key_of(task_file_abs)}] 失败：{err or 'no result event'}")
             write_failure_result(result_path, role, err or "no result event")
             git_snapshot(workspace, f"{role} failed ({os.path.basename(task_file_abs)})")
             sys.exit(1)
@@ -409,10 +581,18 @@ def main():
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, ensure_ascii=False)
 
+    # 派活完成：进度心跳是瞬态信息，删掉以免播报里残留已完成派活的行
+    try:
+        os.remove(progress_path)
+    except OSError:
+        pass
+
     # 产出后快照：归档 Agent 的产出文件与 result/metrics
     git_snapshot(workspace, f"{role} done ({os.path.basename(task_file_abs)})")
 
-    print(f"[spawn:{role}] done ({elapsed:.0f}s, log: debug/.{role}.log)")
+    print(f"[spawn:{role}:{task_key_of(task_file_abs)}] done "
+          f"({elapsed:.0f}s, log: debug/{os.path.basename(log_path)})")
+    append_console(feed, f"[{role}·{task_key_of(task_file_abs)}] 完成（{elapsed:.0f}s）")
 
 
 if __name__ == "__main__":

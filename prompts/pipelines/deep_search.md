@@ -35,7 +35,7 @@
 ```
 阶段 1：专家团循环（单层，≤ {max_iterations} 轮）
     每轮：并行三专家（提议/写任务/动议）
-          → 顺序执行新任务（临时 Builder→Evaluator）+ 并行动议
+          → 执行新任务（临时 Builder→Evaluator，跨分支可并行）+ 并行动议
           → 并行 Critic（批评 + 成熟判定）∥ Secretary（记录 + 更新活文档）
           → 路由：
               PLAN: READY → Secretary 定稿 → final_plan.md → 阶段 2
@@ -130,21 +130,21 @@ python3 {project_root}/scripts/spawn.py Experimentalist {workspace} agents/exper
 echo SPAWNED
 ```
 
-轮询等待（重复执行，直到三角色全部 `READY`）：
+轮询等待（重复执行，直到三路派活全部 `READY`；文件名 = `.<Role>_<任务名>.result`）：
 
 ```bash
 for i in $(seq 1 38); do
   miss=""
-  for r in Theorist Computationalist Experimentalist; do
-    [ -f "{workspace}/debug/.$r.result" ] || miss="$miss $r"
+  for f in "{workspace}/debug/.Theorist_task_council_1_theorist.result" "{workspace}/debug/.Computationalist_task_council_1_computationalist.result" "{workspace}/debug/.Experimentalist_task_council_1_experimentalist.result"; do
+    [ -f "$f" ] || miss="$miss ${f##*/}"
   done
   [ -z "$miss" ] && break
   sleep 15
 done
-for r in Theorist Computationalist Experimentalist; do
-  if [ -f "{workspace}/debug/.$r.result" ]; then echo "$r READY"
-  elif [ -f "{workspace}/debug/.$r.log" ]; then echo "$r RUNNING"
-  else echo "$r NOT_STARTED"; fi
+for f in "{workspace}/debug/.Theorist_task_council_1_theorist.result" "{workspace}/debug/.Computationalist_task_council_1_computationalist.result" "{workspace}/debug/.Experimentalist_task_council_1_experimentalist.result"; do
+  if [ -f "$f" ]; then echo "${f##*/} READY"
+  elif [ -f "${f%.result}.log" ]; then echo "${f##*/} RUNNING"
+  else echo "${f##*/} NOT_STARTED"; fi
 done
 ```
 
@@ -152,7 +152,7 @@ done
 - 有 `RUNNING` → 立即再发起同一轮询调用（不输出纯文本）
 - 有 `NOT_STARTED` → 该专家的 spawn 没启动：按上面的派发命令（绝对路径）重新派发该角色，继续轮询
 
-收集三个 `debug/.{Role}.result` 的 `NEXT_TASKS` 行（取文件名并集），对每个任务执行**分支处理**（见下）。随后并行 spawn Critic 与 Secretary（见下），路由。
+收集三个 `.result`（`debug/.<Role>_<任务名>.result`）的 `NEXT_TASKS` 行（取文件名并集），对每个任务执行**分支处理**（见下）。随后并行 spawn Critic 与 Secretary（见下），路由。
 
 #### 常规轮（第 $n$ 轮）
 
@@ -206,21 +206,25 @@ c. 动议（MOTION）：对可用一次快速计算/验证解决的事实分歧�
 
 并行 spawn 三专家（命令同首轮，任务名换为 `task_council_{n}_theorist` / `_computationalist` / `_experimentalist`），收集 `NEXT_TASKS` 并集与 `MOTION` 行，然后：
 
-1. **分支处理**（对每个新验证任务，顺序执行，见下节）
+1. **分支处理**（对每个新验证任务，跨分支可并行，见下节）
 2. **动议执行**（并行，见下节）
 3. 并行 spawn Critic ∥ Secretary（见下）
 4. 路由（见下）
 
 #### 分支处理（对每个新的 `task_{id}.md`）
 
-**各分支严格顺序处理**。禁止为提速把多个分支的 Builder（或 Evaluator）并行 spawn——运行时文件 `debug/.<Role>.result/.log` 按角色命名，并行会互相覆盖汇报，你将无法分辨结果属于哪个分支。
+同一分支内 Builder → Evaluator 必须顺序执行（Evaluator 依赖 Builder 的产出）；**跨分支可以并行**——运行时文件按派活隔离（`debug/.<Role>_<任务名>.result`），互不覆盖。建议同时在跑不超过 {max_concurrent_agents} 个分支（见 config），更多则分批。
 
-1. spawn Builder：`spawn.py Builder {workspace} agents/builder task_{id} --timeout {ephemeral_timeout}`，读 `debug/.Builder.result`
+每个分支的处理步骤：
+
+1. spawn Builder：`spawn.py Builder {workspace} agents/builder task_{id} --timeout {ephemeral_timeout}`，读 `debug/.Builder_task_{id}.result`
    - `STATUS: OK` → 继续第 2 步
    - `STATUS: BLOCKED` → 树表记 `BLOCKED`，跳过本分支的评估
    - `STATUS: FAIL` → 树表记 `DEAD`（路线级死端）
 2. 写样板 `tasks/task_eval_{id}.md` → spawn Evaluator：`spawn.py Evaluator {workspace} agents/evaluator task_eval_{id} --timeout {ephemeral_timeout}`
-3. 读 `debug/.Evaluator.result` 的 `VERDICT`（可用 `head -1 verification_{id}.md` 交叉验证），更新树表：`PASS` → `ALIVE`，`FAIL` → `DEAD`
+3. 读 `debug/.Evaluator_task_eval_{id}.result` 的 `VERDICT`（可用 `head -1 verification_{id}.md` 交叉验证），更新树表：`PASS` → `ALIVE`，`FAIL` → `DEAD`
+
+并行多个分支时，把各分支的 Builder 派发命令写进同一个 Bash 调用（每行以 `&` 结尾）一次派出，按「并行 spawn 与轮询等待」节的文件清单轮询模板等待各 `.<Role>_<任务名>.result` 就绪；Builder 全部就绪后再同样并行派发各分支的 Evaluator。
 
 **样板 `tasks/task_eval_{id}.md`：**
 
@@ -238,7 +242,7 @@ c. 动议（MOTION）：对可用一次快速计算/验证解决的事实分歧�
 
 #### 动议执行
 
-读四个专家角色 `debug/.{Role}.result` 的 `MOTION` 行（三专家与后续动议轮）。对每个动议，按其指定执行者派活——**同一执行者角色的多个动议必须串行**；仅当执行者角色不同（一个 Builder 一个 Evaluator）时才可并行，且必须走「并行 spawn 与轮询等待」规范模式（轮询循环的角色名换成实际派发的角色）：
+读专家角色各 `.result`（`debug/.<Role>_<任务名>.result`）的 `MOTION` 行（三专家与后续动议轮）。对每个动议，按其指定执行者派活——**多个动议可以并行派发（包括同一执行者角色的多个动议）**：运行时文件按任务名隔离，互不覆盖。并行时必须走「并行 spawn 与轮询等待」规范模式（轮询清单列出实际派发的每个 `.result` 文件名）：
 
 - `-> Builder`：`spawn.py Builder {workspace} agents/builder task_motion_{k} --timeout {ephemeral_timeout}`
 - `-> Evaluator`：`spawn.py Evaluator {workspace} agents/evaluator task_motion_{k} --timeout {ephemeral_timeout}`
@@ -294,21 +298,21 @@ python3 {project_root}/scripts/spawn.py Secretary {workspace} agents/secretary t
 echo SPAWNED
 ```
 
-轮询等待（重复执行，直到两角色全部 `READY`）：
+轮询等待（重复执行，直到两路派活全部 `READY`）：
 
 ```bash
 for i in $(seq 1 38); do
   miss=""
-  for r in Critic Secretary; do
-    [ -f "{workspace}/debug/.$r.result" ] || miss="$miss $r"
+  for f in "{workspace}/debug/.Critic_task_critic_{n}.result" "{workspace}/debug/.Secretary_task_secretary_{n}.result"; do
+    [ -f "$f" ] || miss="$miss ${f##*/}"
   done
   [ -z "$miss" ] && break
   sleep 15
 done
-for r in Critic Secretary; do
-  if [ -f "{workspace}/debug/.$r.result" ]; then echo "$r READY"
-  elif [ -f "{workspace}/debug/.$r.log" ]; then echo "$r RUNNING"
-  else echo "$r NOT_STARTED"; fi
+for f in "{workspace}/debug/.Critic_task_critic_{n}.result" "{workspace}/debug/.Secretary_task_secretary_{n}.result"; do
+  if [ -f "$f" ]; then echo "${f##*/} READY"
+  elif [ -f "${f%.result}.log" ]; then echo "${f##*/} RUNNING"
+  else echo "${f##*/} NOT_STARTED"; fi
 done
 ```
 
@@ -316,7 +320,7 @@ done
 
 #### 路由
 
-读 `debug/.Critic.result` 的 `PLAN` 行与树表：
+读 `debug/.Critic_task_critic_{n}.result` 的 `PLAN` 行与树表：
 
 - `PLAN: READY` → **定稿**：写样板 `tasks/task_secretary_final.md`（见下）→ `spawn.py Secretary {workspace} agents/secretary task_secretary_final --timeout {deep_timeout}`，确认其 `OUTPUT` 含 `final_plan.md` → 更新 `debug/.state`（`stage: plan_verification`）→ 进入阶段 2
 - `PLAN: SEARCH` → 更新 `debug/.state`（树表 + `council_round` + `last_verdict` + `motions_used`），回到常规轮
@@ -371,7 +375,7 @@ done
 将结果写入 `{workspace}/verification_plan.md`。输出第一行必须是 SOUND 或 REVISE。
 ```
 
-然后 `spawn.py Verifier {workspace} agents/verifier task_verifier`，读 `debug/.Verifier.result` 的 `VERDICT` 字段（可用 `head -1 verification_plan.md` 交叉验证）：
+然后 `spawn.py Verifier {workspace} agents/verifier task_verifier`，读 `debug/.Verifier_task_verifier.result` 的 `VERDICT` 字段（可用 `head -1 verification_plan.md` 交叉验证）：
 
 - `SOUND` → 更新 `debug/.state`（`stage: final`），进入阶段 3
 - `REVISE` 且 `verify_round < {max_verify_rounds}` → **打回**（见下）
@@ -440,7 +444,7 @@ Verifier 驳回了方案。请阅读 `{workspace}/verification_plan.md` 的问�
 然后汇报 `VERDICT: PENDING` + `SUBTASKS:` 行。子任务预算剩余 {subtasks_left}；预算为 0 时**必须直接给出最终裁决**。
 ```
 
-`spawn.py Evaluator {workspace} agents/evaluator task_final_evaluator --timeout {timeout_seconds}`，读 `debug/.Evaluator.result`：
+`spawn.py Evaluator {workspace} agents/evaluator task_final_evaluator --timeout {timeout_seconds}`，读 `debug/.Evaluator_task_final_evaluator.result`：
 
 - `VERDICT: PASS` → 生成 `final_summary.md`（见通用编排器），收工
 - `VERDICT: REVISE` → **修订争议协议**（见通用编排器：Builder 回击 → 必要时 Evaluator 复审，达成共识或达 {max_disputes} 上限后才修订），重写样板任务（追加"请先阅读 review.md、rebuttal/rejoin 的最终结论并修正；未解决的争议点单独标注"），重新 spawn Final Builder（修订最多 {max_revisions} 次）
@@ -452,7 +456,7 @@ Verifier 驳回了方案。请阅读 `{workspace}/verification_plan.md` 的问�
 #### 子问题增援协议（Ephemeral Standard 三连）
 
 1. 读 `SUBTASKS` 行的任务文件列表；`subtasks_used` + 本轮个数超过 `{max_subtasks}` 的，只执行到预算上限，其余在 `debug/.state` 注明跳过
-2. 对每个 `tasks/task_sub_{k}.md` **顺序**执行三连：
+2. 对每个 `tasks/task_sub_{k}.md` 执行三连（单个子任务内三步必须顺序——后一步依赖前一步产出；多个子任务之间可以并行，走「并行 spawn 与轮询等待」规范模式）：
    ```bash
    python3 {project_root}/scripts/spawn.py Planner {workspace} agents/planner task_sub_{k} --timeout {ephemeral_timeout}
    # Planner（基础版）读子任务，写简案 sub_plan_{k}.md

@@ -125,7 +125,7 @@ Builder 对你的 REVISE 意见逐条做了 ACCEPT/REBUT 回应，你复审其�
 
 ## 汇报给 Orchestrator（最终消息）
 
-你的**最终消息**会被原样转发给 Orchestrator（写入 `debug/.{Role}.result`）。Orchestrator 只依据 `VERDICT` 字段决定流程走向。完成任务后，最终消息**只包含**以下格式：
+你的**最终消息**会被原样转发给 Orchestrator（写入按派活隔离的 `debug/.Evaluator_<任务名>.result`，任务名 = 派活时给你的任务文件名去掉 `.md`）。Orchestrator 只依据 `VERDICT` 字段决定流程走向。完成任务后，最终消息**只包含**以下格式：
 
 ```
 HANDOFF

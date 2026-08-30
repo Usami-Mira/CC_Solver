@@ -139,7 +139,7 @@ critic_round_{N}.md 必须包含以下部分：
 
 ## 汇报给 Orchestrator（最终消息）
 
-你的**最终消息**会被原样转发给 Orchestrator（写入 `.{Role}.result`）。Orchestrator 依据 SUMMARY 判断辩论是否收敛。完成任务后，最终消息**只包含**以下格式：
+你的**最终消息**会被原样转发给 Orchestrator（写入按派活隔离的 `debug/.Critic_<任务名>.result`，任务名 = 派活时给你的任务文件名去掉 `.md`）。Orchestrator 依据 SUMMARY 判断辩论是否收敛。完成任务后，最终消息**只包含**以下格式：
 
 ```
 HANDOFF

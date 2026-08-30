@@ -99,7 +99,7 @@ Planner 展开搜索树（一次生成 ≥2 个结构不同的分支）→ 每�
 最终消息按 HANDOFF 格式：`STATUS: BRANCH` + `PARENT: ROOT` + `NEXT_TASKS: task_a.md, task_b.md, ...`
 ```
 
-然后 `spawn.py Planner {workspace} agents/planner_deep task_planner_1`，读 `debug/.Planner.result`，按 HANDOFF 路由（见下）。
+然后 `spawn.py Planner {workspace} agents/planner_deep task_planner_1`，读 `debug/.Planner_task_planner_1.result`，按 HANDOFF 路由（见下）。
 
 ### 常规轮（第 $n$ 轮）：展开指定节点
 
@@ -124,23 +124,28 @@ c. 节点 `{id}` 实为死端/无价值 → 汇报 `STATUS: FAIL`（Orchestrator
 若本轮有值得保留的新结论，追加到 `{workspace}/calculations_history.md`。
 ```
 
-然后 `spawn.py Planner {workspace} agents/planner_deep task_planner_{n}`，读 `debug/.Planner.result`。
+然后 `spawn.py Planner {workspace} agents/planner_deep task_planner_{n}`，读 `debug/.Planner_task_planner_{n}.result`。
 
 ### 根据 Planner 的 HANDOFF 路由
 
-- `STATUS: BRANCH` + `NEXT_TASKS: ...` + `PARENT: {id}` → 顺序处理每个分支（见下节）；分支数不足 2 个则照常执行（视为线性深入，树退化为单链）
+- `STATUS: BRANCH` + `NEXT_TASKS: ...` + `PARENT: {id}` → 处理每个分支（跨分支可并行，见下节）；分支数不足 2 个则照常执行（视为线性深入，树退化为单链）
 - `STATUS: DONE` → 更新 `debug/.state`（该节点记 `DONE`），进入阶段 2
 - `STATUS: FAIL` → 树表中该节点记 `DEAD`，回到 best-first 选择（进入下一轮）；根展开轮无节点可记，直接进入下一轮
 
 ### 分支处理（对 `NEXT_TASKS` 中每个 `task_{id}.md`）
 
-1. spawn Builder：`spawn.py Builder {workspace} agents/builder task_{id}`（临时任务加 `--timeout {ephemeral_timeout}`），读 `debug/.Builder.result`
+同一分支内 Builder → Evaluator 必须顺序执行（Evaluator 依赖 Builder 的产出）；**跨分支可以并行**——运行时文件按派活隔离（`debug/.<Role>_<任务名>.result`），互不覆盖。建议同时在跑不超过 {max_concurrent_agents} 个分支（见 config），更多则分批。
+
+每个分支的处理步骤：
+
+1. spawn Builder：`spawn.py Builder {workspace} agents/builder task_{id}`（临时任务加 `--timeout {ephemeral_timeout}`），读 `debug/.Builder_task_{id}.result`
    - `STATUS: OK` → 继续第 2 步
    - `STATUS: BLOCKED` → 树表记 `BLOCKED`，跳过本分支的评估，处理下一个分支
    - `STATUS: FAIL` → 树表记 `DEAD`，处理下一个分支
 2. 写样板 `tasks/task_eval_{id}.md` → spawn Evaluator（`agents/evaluator task_eval_{id}`，加 `--timeout {ephemeral_timeout}`）
-3. 读 `debug/.Evaluator.result` 的 `VERDICT`（可用 `head -1 verification_{id}.md` 交叉验证），更新树表：`PASS` → `ALIVE`，`FAIL` → `DEAD`
-4. 处理下一个分支
+3. 读 `debug/.Evaluator_task_eval_{id}.result` 的 `VERDICT`（可用 `head -1 verification_{id}.md` 交叉验证），更新树表：`PASS` → `ALIVE`，`FAIL` → `DEAD`
+
+并行多个分支时，按通用编排器「并行 spawn 与轮询等待」节的规范模式：`&` 派发各分支 Builder，轮询清单列出每个 `.Builder_task_{id}.result`；Builder 全部就绪后再同样并行派发各分支 Evaluator。
 
 **所有分支处理完后**更新 `debug/.state`（树表 + `iteration` + `last_verdict`），回到 best-first 选择。
 
@@ -210,13 +215,13 @@ c. 节点 `{id}` 实为死端/无价值 → 汇报 `STATUS: FAIL`（Orchestrator
 将结果写入 `{workspace}/verification_plan.md`。输出第一行必须是 SOUND 或 REVISE。
 ```
 
-然后 `spawn.py Verifier {workspace} agents/verifier task_verifier`，读 `debug/.Verifier.result` 的 `VERDICT` 字段（可用 `head -1 verification_plan.md` 交叉验证）：
+然后 `spawn.py Verifier {workspace} agents/verifier task_verifier`，读 `debug/.Verifier_task_verifier.result` 的 `VERDICT` 字段（可用 `head -1 verification_plan.md` 交叉验证）：
 
 - `SOUND` → 更新 `debug/.state`，进入阶段 3（Final Builder）
 - `REVISE` 且 `debug/.state` 中尚无 `verify_round`（第一次）：
   1. 更新 `debug/.state`：`verify_round: 1`
   2. 写样板 `tasks/task_planner_{n}.md`（`{n}` 为下一个迭代编号），内容：「说明：按 Verifier 问题清单修订 final_plan.md。请阅读 `{workspace}/verification_plan.md` 中的问题清单，针对性修订 `{workspace}/final_plan.md`，完成后按原格式汇报 `STATUS: DONE`。」
-  3. `spawn.py Planner {workspace} agents/planner_deep task_planner_{n}`，读 `debug/.Planner.result`；`STATUS: DONE` 则回到本阶段重新验证（`STATUS: BRANCH/FAIL` 则按树搜索路由处理）
+  3. `spawn.py Planner {workspace} agents/planner_deep task_planner_{n}`，读 `debug/.Planner_task_planner_{n}.result`；`STATUS: DONE` 则回到本阶段重新验证（`STATUS: BRANCH/FAIL` 则按树搜索路由处理）
 - `REVISE` 且 `debug/.state` 已有 `verify_round: 1`（第二次）：**直接放行进入阶段 3**——在 `debug/.state` 记录 `last_verdict: REVISE` 后继续，不再循环
 
 **验证最多 1 轮修订**：第二次 Verifier 裁决无论是什么都放行。

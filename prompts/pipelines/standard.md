@@ -72,7 +72,7 @@ REVISE → 回到 Builder（最多 {max_revisions} 次）
 将结果写入 `{workspace}/review.md`。输出第一行必须是 PASS 或 REVISE。
 ```
 
-**路由（只依据 `debug/.<Role>.result` 的 HANDOFF）：**
+**路由（只依据本次派活对应的 `debug/.<Role>_<任务名>.result` 的 HANDOFF，如 `.Planner_task_planner.result`、`.Builder_task_builder.result`、`.Evaluator_task_evaluator.result`）：**
 
 - Planner `STATUS: OK` → spawn Builder；`BLOCKED`/`FAIL` → 重试一次，仍失败记入 `debug/.errors.log` 并终止
 - Builder `STATUS: OK` → spawn Evaluator；`BLOCKED` → 重试一次

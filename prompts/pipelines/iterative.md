@@ -76,7 +76,7 @@ Explorer 提出假设 → Builder 验证 → Evaluator 评估 → 循环迭代�
 2. 将本轮结论追加到 `{workspace}/exploration_history.md`（假设要点 + 裁决 + 经验教训，不超过 5 行）
 ```
 
-**路由（只依据 `debug/.<Role>.result` 的 HANDOFF，`VERDICT` 与 `assessment_{n}.md` 第一行一致）：**
+**路由（只依据本次派活对应的 `debug/.<Role>_<任务名>.result` 的 HANDOFF，如 `.Explorer_task_explorer_{n}.result`；`VERDICT` 与 `assessment_{n}.md` 第一行一致）：**
 
 - Explorer `BLOCKED` → 重试一次；仍失败 → 记入 `debug/.errors.log`，终止并写 final_summary.md
 - Builder `BLOCKED` → 本轮按 DEAD_END 处理，直接进入下一轮

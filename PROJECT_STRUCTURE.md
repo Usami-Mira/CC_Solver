@@ -38,7 +38,9 @@ CC_Solver/
 │   ├── statusline.py         #   Claude Code 状态栏（显示 pipeline 实时进度 + Agent 进度条）
 │   ├── test_git_integration.py # Git 集成单元测试
 │   ├── test_path_guard.py    #   path_guard（防偷看）单元测试
-│   └── test_hang_kill.py     #   进程挂起防护回归测试
+│   ├── test_hang_kill.py     #   进程挂起防护回归测试
+│   ├── test_spawn_keying.py  #   spawn.py 按派活隔离与事件流渲染单元测试
+│   └── test_prompt_assembly.py #  八流水线 prompt 组装与控制台策略回归测试
 │
 ├── prompts/                  # Agent 定义
 │   ├── orchestrator.md       #   通用 Orchestrator prompt（含模板变量）
@@ -51,6 +53,7 @@ CC_Solver/
 │   │   ├── meta_planner.md
 │   │   ├── explorer.md
 │   │   ├── secretary.md
+│   │   ├── assessor.md
 │   │   ├── theorist.md
 │   │   ├── computationalist.md
 │   │   ├── experimentalist.md
@@ -62,7 +65,8 @@ CC_Solver/
 │   │   ├── debate.md
 │   │   ├── tree_search.md
 │   │   ├── adaptive.md
-│   │   └── deep_search.md
+│   │   ├── deep_search.md
+│   │   └── auto.md
 │   └── skills/               #   可调用的 Skill
 │       ├── calculation.md
 │       ├── dimension_check.md
@@ -76,6 +80,7 @@ CC_Solver/
 │           ├── solution.md        # Builder 输出
 │           ├── review.md          # Evaluator 输出
 │           ├── final_summary.md   # 最终汇总（含记忆审计段落）
+│           ├── console.log        # 运行活动实时镜像（派活/进展/完成）
 │           ├── tasks/             # 任务文件（task_*.md、rebuttal/rejoin 任务）
 │           ├── scripts/           # 按角色隔离的脚本：
 │           │   ├── builder/<任务名>/    #   Builder 的计算脚本
@@ -83,10 +88,10 @@ CC_Solver/
 │           │   └── verifier/            #   Verifier 的抽查脚本
 │           ├── debug/             # 内部状态目录：
 │           │   ├── .state         #   断点状态（key: value）
-│           │   ├── .{role}.result #   HANDOFF 汇报（≤6 行）
-│           │   ├── .{role}.metrics#   调用指标
-│           │   ├── .{role}.session#   Claude 会话 ID（--resume 用）
-│           │   ├── .{role}.progress#  进度条（k/N: 摘要）
+│           │   ├── .<Role>_<task>.result   # HANDOFF 汇报（≤6 行；按派活隔离，<task>=任务文件名去 .md）
+│           │   ├── .<Role>_<task>.metrics  #   调用指标
+│           │   ├── .<Role>_<task>.session  #   Claude 会话 ID（--resume 用）
+│           │   ├── .<Role>_<task>.progress #   进度条（k/N: 摘要）
 │           │   ├── .orchestrator_session / .orchestrator.log / .errors.log
 │           │   └── .memory_audit  #   记忆防火墙审计日志
 │           └── .git/              # Git 仓库（自动创建）
@@ -289,7 +294,7 @@ next: Planner task_planner_4.md
 
 Orchestrator 每完成一个阶段更新一次，续跑时先读它恢复决策上下文（auto-compact 后同样可恢复）。
 
-**会话层** — `debug/.orchestrator_session` 与 `debug/.{role}.session` 存 Claude 会话 ID。超时/中断后，`run.py` / `spawn.py` 自动尝试 `claude --resume <会话ID>` 续接原会话（附固定的续传提示：先盘点已完成部分，再从中断处继续）；续接失败或再次超时才退回开新会话。`--resume` 只用于超时/中断，不用于 BLOCKED/FAIL 后的重试。此外 `run.py` 监督者还兜底一类早夭：`--print` 模式下不含工具调用的纯文本回应会立即结束会话，若会话已结束而 `final_summary.md` 未产出，监督者自动续跑同一会话（上限 30 次，连续 3 次零产出则中止），配合 Orchestrator 的轮询等待规范（等待期间每次回应必须带 Bash 工具调用）双层保活。
+**会话层** — `debug/.orchestrator_session` 与 `debug/.<Role>_<task>.session` 存 Claude 会话 ID。超时/中断后，`run.py` / `spawn.py` 自动尝试 `claude --resume <会话ID>` 续接原会话（附固定的续传提示：先盘点已完成部分，再从中断处继续）；续接失败或再次超时才退回开新会话。`--resume` 只用于超时/中断，不用于 BLOCKED/FAIL 后的重试。此外 `run.py` 监督者还兜底一类早夭：`--print` 模式下不含工具调用的纯文本回应会立即结束会话，若会话已结束而 `final_summary.md` 未产出，监督者自动续跑同一会话（上限 30 次，连续 3 次零产出则中止），配合 Orchestrator 的轮询等待规范（等待期间每次回应必须带 Bash 工具调用）双层保活。
 
 ## Git 提交约定
 
@@ -323,7 +328,7 @@ REVISE → task_rebuttal_{n}: Builder 逐条 ACCEPT/REBUT（禁止改 solution.m
 ### 问题：Agent 卡住或超时
 
 **检查**：
-1. `cat problems/<exam>/<n>/debug/.{role}.log` — 查看 Agent 日志
+1. `cat problems/<exam>/<n>/debug/.<Role>_<task>.log` — 查看某次派活的 Agent 日志（`<task>` = 任务文件名去 `.md`）
 2. `cat problems/<exam>/<n>/debug/.state` — 查看当前阶段
 3. `cat problems/<exam>/<n>/debug/.errors.log` — 查看运行期错误
 4. `config.json` 中的 `timeout_seconds` — 是否太短

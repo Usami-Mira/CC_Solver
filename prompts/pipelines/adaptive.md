@@ -73,12 +73,12 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
    b. 理解已充分 → 写 `{workspace}/final_plan.md`（完整求解方案）
 ```
 
-然后 `spawn.py Planner {workspace} agents/planner task_planner_{n}`，读 `debug/.Planner.result`。
+然后 `spawn.py Planner {workspace} agents/planner task_planner_{n}`，读 `debug/.Planner_task_planner_{n}.result`。
 
 ### 根据 Planner 的 HANDOFF 路由
 
 - `STATUS: DONE` → 进入阶段 2（方案验证，spawn Verifier，见下）
-- `STATUS: VERIFY` + `NEXT_TASK: task_{id}.md` → spawn Builder（`agents/builder task_{id}`，临时任务加 `--timeout {ephemeral_timeout}`），读 `debug/.Builder.result`
+- `STATUS: VERIFY` + `NEXT_TASK: task_{id}.md` → spawn Builder（`agents/builder task_{id}`，临时任务加 `--timeout {ephemeral_timeout}`），读 `debug/.Builder_task_{id}.result`
   - `STATUS: OK` → 写样板 `tasks/task_eval_{id}.md` → spawn Evaluator（`agents/evaluator task_eval_{id}`，加 `--timeout {ephemeral_timeout}`）
   - `STATUS: BLOCKED` → 直接进入下一轮迭代（Planner 自己会读文件了解情况）
 - `STATUS: FAIL` → 直接进入下一轮迭代
@@ -96,7 +96,7 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
 
 ### 根据 Evaluator 的 HANDOFF 路由
 
-读 `debug/.Evaluator.result` 的 `VERDICT` 字段（可用 `head -1 verification_{id}.md` 交叉验证）：
+读 `debug/.Evaluator_task_eval_{id}.result` 的 `VERDICT` 字段（可用 `head -1 verification_{id}.md` 交叉验证）：
 
 - `PASS` → 更新 `debug/.state`，进入下一轮迭代
 - `FAIL` → 更新 `debug/.state`，进入下一轮迭代（Planner 会看到失败并调整）
@@ -116,13 +116,13 @@ Planner 自适应决策 → 调用临时 Builder-Evaluator 验证小结论 → �
 将结果写入 `{workspace}/verification_plan.md`。输出第一行必须是 SOUND 或 REVISE。
 ```
 
-然后 `spawn.py Verifier {workspace} agents/verifier task_verifier`，读 `debug/.Verifier.result` 的 `VERDICT` 字段（可用 `head -1 verification_plan.md` 交叉验证）：
+然后 `spawn.py Verifier {workspace} agents/verifier task_verifier`，读 `debug/.Verifier_task_verifier.result` 的 `VERDICT` 字段（可用 `head -1 verification_plan.md` 交叉验证）：
 
 - `SOUND` → 更新 `debug/.state`，进入阶段 3（Final Builder）
 - `REVISE` 且 `debug/.state` 中尚无 `verify_round`（第一次）：
   1. 更新 `debug/.state`：`verify_round: 1`
   2. 写样板 `tasks/task_planner_{n}.md`（`{n}` 为下一个迭代编号），内容在迭代样板基础上把说明行与第 3 条换成：「说明：按 Verifier 问题清单修订 final_plan.md。请阅读 `{workspace}/verification_plan.md` 中的问题清单，针对性修订 `{workspace}/final_plan.md`，完成后按原格式汇报 `STATUS: DONE`。」
-  3. `spawn.py Planner {workspace} agents/planner task_planner_{n}`，读 `debug/.Planner.result`；`STATUS: DONE` 则回到本阶段重新验证（`STATUS: VERIFY/FAIL` 则按迭代路由处理）
+  3. `spawn.py Planner {workspace} agents/planner task_planner_{n}`，读 `debug/.Planner_task_planner_{n}.result`；`STATUS: DONE` 则回到本阶段重新验证（`STATUS: VERIFY/FAIL` 则按迭代路由处理）
 - `REVISE` 且 `debug/.state` 已有 `verify_round: 1`（第二次）：**直接放行进入阶段 3**——在 `debug/.state` 记录 `last_verdict: REVISE` 后继续，不再循环
 
 **验证最多 1 轮修订**：第二次 Verifier 裁决无论是什么都放行。

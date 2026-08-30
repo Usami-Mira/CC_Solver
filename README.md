@@ -2,7 +2,7 @@
 
 ## 简介
 
-本项目通过 Claude Code CLI 编排多个 Agent 自动解决物理题目。系统提供 **7 种解题策略（Pipeline）**，适应不同类型的问题：
+本项目通过 Claude Code CLI 编排多个 Agent 自动解决物理题目。系统提供 **8 种解题策略（Pipeline）**，适应不同类型的问题：
 
 | Pipeline | 策略 | 适用场景 |
 |----------|------|----------|
@@ -13,6 +13,7 @@
 | **Tree Search** | Planner 展开搜索树（≥2 分支 + 验收判据）→ Ephemeral Builder-Evaluator 逐支验证 → best-first 选择 + 死端回溯 → Verifier 审查方案 → Final Builder → Evaluator | 多条结构不同路线竞争、易撞死端的题 |
 | **Adaptive** | Planner 自适应决策 → Ephemeral Builder-Evaluator 验证 → 动态调整 → Verifier 审查方案 → Final Builder → Evaluator | 需要逐步验证和策略调整的问题 |
 | **Deep Search** | **专家团循环**（Theorist/Computationalist/Experimentalist 提路线并写验证任务 → 临时 Builder-Evaluator 逐支执行 → Critic 判成熟 ∥ Secretary 增量汇总）→ Verifier 单闸审查（REVISE = 打回专家团逐条修订，耗尽则终止、永不放行）→ Final Builder/Evaluator（三态：FAIL = 无出路打回专家团重开；Final E 可申请临时 Standard 三连的子问题增援） | **难题默认**：crux 不明、易撞死端、方案须经多视角碰撞 |
+| **Auto** | Assessor 评难度（EASY/MEDIUM/HARD/FRONTIER）→ Orchestrator 按决策表自组蓝图（7 阶段封闭词表：plan / diverge / search / debate / synthesize / gate / final）→ 逐阶段执行；结构性失败触发**升级协议**（蓝图只升不降），派活预算 + 检查点脚手架保障长程运行 | 难度未知、不想手选流水线、批量混难度题集 |
 
 每道题支持断点续传：状态文件 + `claude --resume` 会话续接双重保障，中断后可自动从上次进度继续。系统使用 Git 自动追踪解题过程的完整演变（逐阶段快照在代码层自动完成），支持查看每个阶段的变更历史和版本对比。
 
@@ -129,6 +130,33 @@ problems/
         "Builder": "qwen3.6-plus",
         "Evaluator": "qwen3.6-plus"
       }
+    },
+
+    "auto": {
+      "model": "qwen3.6-plus",
+      "timeout_seconds": 864000,
+      "max_revisions": 8,
+      "max_phases": 8,
+      "max_spawns": 40,
+      "max_escalations": 2,
+      "max_search_rounds": 4,
+      "max_debate_rounds": 2,
+      "max_verify_rounds": 3,
+      "max_concurrent_agents": 4,
+      "ephemeral_timeout": 6000,
+      "deep_timeout": 18000,
+      "agent_models": {
+        "Assessor": "qwen3.6-plus",
+        "Planner": "qwen3.6-plus",
+        "Theorist": "qwen3.6-plus",
+        "Computationalist": "qwen3.6-plus",
+        "Experimentalist": "qwen3.6-plus",
+        "Critic": "qwen3.6-plus",
+        "Secretary": "qwen3.6-plus",
+        "Verifier": "qwen3.6-plus",
+        "Builder": "qwen3.6-plus",
+        "Evaluator": "qwen3.6-plus"
+      }
     }
   }
 }
@@ -138,8 +166,9 @@ problems/
 
 | 字段 | 说明 |
 |------|------|
-| `pipeline` | 当前使用的解题策略：`standard` / `parallel` / `iterative` / `debate` / `tree_search` / `adaptive` / `deep_search` |
+| `pipeline` | 当前使用的解题策略：`standard` / `parallel` / `iterative` / `debate` / `tree_search` / `adaptive` / `deep_search` / `auto` |
 | `max_concurrent_problems` | 多题批量模式（**尚未实现**）的最大并行题目数，预留字段，默认 3 |
+| `max_concurrent_agents` | 同一工作区建议同时在跑的 sub-Agent/分支数（软约束，写进流水线提示词供调度参考），默认 4 |
 | `max_disputes` | 修订争议协议最大轮数：REVISE 时 Builder 回击 → Evaluator 复审，达上限后强制修订（争议点单独标注），默认 2 |
 | `memory_guard` | 记忆防火墙模式：`quarantine`（运行后 git 快照隔离，重置本次运行对记忆目录的改动）/ `audit`（只记录不重置）/ `off` |
 
@@ -153,11 +182,17 @@ problems/
 | `max_iterations` | iterative, tree_search, adaptive, deep_search | 迭代循环的最大次数（deep_search = 专家团循环轮数） |
 | `max_rounds` | debate | 辩论轮数 |
 | `max_motions` | deep_search | 专家团动议（临时 Builder/Evaluator）总数上限 |
-| `max_verify_rounds` | deep_search | Verifier 打回轮数上限；耗尽仍 REVISE 则运行终止、永不放行 |
+| `max_verify_rounds` | deep_search, auto | Verifier 打回轮数上限；耗尽仍 REVISE 则运行终止、永不放行 |
 | `max_subtasks` | deep_search | Final Evaluator 子问题增援（临时 Standard 三连）总数上限 |
+| `max_concurrent_agents` | deep_search, tree_search, auto | 建议同时在跑的分支/派活数上限（覆盖顶层值） |
+| `max_phases` | auto | 蓝图阶段数上限（封闭词表：plan / diverge / search / debate / synthesize / gate / final） |
+| `max_spawns` | auto | 全程派活总数上限（含重试），耗尽即强制收尾 |
+| `max_escalations` | auto | 结构升级次数上限（路线全灭/终审 FAIL 时蓝图就地加强） |
+| `max_search_rounds` | auto | search 阶段（专家团深挖）轮数上限 |
+| `max_debate_rounds` | auto | debate 阶段（专家团辩论）轮数上限 |
 | `num_planners` | parallel | 并行 Planner 数量 |
-| `ephemeral_timeout` | tree_search, adaptive, deep_search | 临时 Builder/Evaluator（deep_search 还包括动议执行、子问题三连、轮次记录）超时（秒） |
-| `deep_timeout` | deep_search | 专家团发言、Critic、Secretary、Verifier、定稿与打回修订的超时（秒） |
+| `ephemeral_timeout` | tree_search, adaptive, deep_search, auto | 临时 Builder/Evaluator（deep_search 还包括动议执行、子问题三连、轮次记录；auto 还包括 Assessor 与辩论记录）超时（秒） |
+| `deep_timeout` | deep_search, auto | 专家团发言、Critic、Secretary、Verifier、定稿与打回修订的超时（秒） |
 | `agent_models` | 所有 | 为不同 Agent 配置不同模型 |
 
 ## 运行
@@ -175,6 +210,7 @@ python3 scripts/run.py problems/example_single --pipeline debate
 python3 scripts/run.py problems/example_single --pipeline tree_search
 python3 scripts/run.py problems/example_single --pipeline adaptive
 python3 scripts/run.py problems/example_single --pipeline deep_search
+python3 scripts/run.py problems/example_single --pipeline auto
 ```
 
 **Pipeline 选择建议：**
@@ -182,6 +218,7 @@ python3 scripts/run.py problems/example_single --pipeline deep_search
 | 题目类型 | 推荐 Pipeline | 理由 |
 |----------|--------------|------|
 | 难题/前沿问题（默认） | `deep_search` | 专家团循环（发散 + 深挖 + 共识收敛）+ Verifier 单闸打回 + 终审三态，集所有结构之大成 |
+| 难度未知/批量混难度 | `auto` | Assessor 评难度后自组蓝图，结构性失败自动升级结构；派活预算 + 检查点脚手架保长程稳定 |
 | 常规计算题 | `standard` | 简单直接，资源消耗最少 |
 | 多解法题目 | `parallel` | 并行探索多种思路，选最优 |
 | 开放性探究 | `iterative` | 假设-验证循环，逐步逼近 |
@@ -254,13 +291,14 @@ git diff HEAD~2 solution.md
 | 文件 | 说明 |
 |------|------|
 | `debug/.state` | 断点续传状态文件（key: value），记录当前阶段、轮次、裁决与下一个 Agent |
-| `debug/.{role}.result` | 对应 Agent 的 HANDOFF 汇报（≤6 行） |
-| `debug/.{role}.metrics` | 对应 Agent 的调用指标（用时、Token 消耗等） |
-| `debug/.{role}.session` | 对应 Agent 的 Claude 会话 ID（用于 `--resume` 断点续传） |
-| `debug/.{role}.progress` | 对应 Agent 的进度条（`k/N: 摘要`，单行） |
+| `debug/.<Role>_<task>.result` | 对应派活的 HANDOFF 汇报（≤6 行；运行时文件按派活隔离，`<task>` = 任务文件名去 `.md`） |
+| `debug/.<Role>_<task>.metrics` | 对应派活的调用指标（用时、Token 消耗等） |
+| `debug/.<Role>_<task>.session` | 对应派活的 Claude 会话 ID（用于 `--resume` 断点续传） |
+| `debug/.<Role>_<task>.progress` | 对应派活的进度条（`k/N: 摘要`，单行） |
 | `debug/.orchestrator.log` | Orchestrator 流式日志 |
 | `debug/.errors.log` | 运行期错误记录 |
 | `debug/.memory_audit` | 记忆防火墙审计日志（运行前后记忆目录的 git 快照对比） |
+| `<工作区>/console.log` | 运行活动实时镜像：Orchestrator 的派活事件与 sub-Agent 的关键动作（文字化后的"运行脚本 …"等），`run.py` 与 `spawn.py` 共同追加，方便不进终端也能随时查看进展 |
 
 ## 注意事项
 
@@ -288,7 +326,9 @@ git diff HEAD~2 solution.md
 │   ├── statusline.py        # Claude Code 状态栏：实时显示 pipeline 进度
 │   ├── test_git_integration.py  # Git 集成单元测试
 │   ├── test_path_guard.py   # path_guard 单元测试
-│   └── test_hang_kill.py    # 进程挂起防护回归测试
+│   ├── test_hang_kill.py    # 进程挂起防护回归测试
+│   ├── test_spawn_keying.py # spawn.py 按派活隔离与事件流渲染单元测试
+│   └── test_prompt_assembly.py  # 八流水线 prompt 组装与控制台策略回归测试
 ├── prompts/                 # Agent 定义和 Skill 定义
 │   ├── orchestrator.md      # 通用 Orchestrator system prompt
 │   ├── agents/              # 各 Agent 定义
@@ -300,6 +340,7 @@ git diff HEAD~2 solution.md
 │   │   ├── meta_planner.md
 │   │   ├── explorer.md
 │   │   ├── secretary.md
+│   │   ├── assessor.md
 │   │   ├── theorist.md
 │   │   ├── computationalist.md
 │   │   ├── experimentalist.md
@@ -311,7 +352,8 @@ git diff HEAD~2 solution.md
 │   │   ├── debate.md
 │   │   ├── tree_search.md
 │   │   ├── adaptive.md
-│   │   └── deep_search.md
+│   │   ├── deep_search.md
+│   │   └── auto.md
 │   └── skills/              # Skill 定义
 │       ├── calculation.md
 │       ├── dimension_check.md
@@ -324,6 +366,7 @@ git diff HEAD~2 solution.md
 │       │   ├── solution.md        # Builder 输出
 │       │   ├── review.md          # Evaluator 输出
 │       │   ├── final_summary.md   # 最终汇总（含记忆审计段落）
+│       │   ├── console.log        # 运行活动实时镜像（派活/进展/完成，随时可看）
 │       │   ├── tasks/             # 任务文件（task_*.md、rebuttal/rejoin 任务）
 │       │   ├── scripts/           # 按角色隔离的脚本：builder/、evaluator/、verifier/（每个任务再分子目录）
 │       │   ├── debug/             # 内部状态目录（.state、.*.result、.*.session、日志、进度）
@@ -389,7 +432,7 @@ Orchestrator
 
 ### Agent 进度条
 
-Builder 执行最终推导时，会按 plan / final_plan 的步骤编号逐步覆写 `debug/.builder.progress`（单行：`k/N: 本步摘要`）。`run.py` 的后台监视器与 `statusline.py`（Claude Code 状态栏）实时读取并渲染，长推导也能看到进行到了哪一步；其他角色的进度文件同理。
+Builder 执行最终推导时，会按 plan / final_plan 的步骤编号逐步覆写 `debug/.Builder_<task>.progress`（单行：`k/N: 本步摘要`；`<task>` = 派活的任务名，同角色多路并行互不覆盖）。`run.py` 的后台监视器与 `statusline.py`（Claude Code 状态栏）实时读取并渲染，长推导也能看到进行到了哪一步；其他角色的进度文件同理（spawn.py 也会把观察到的工具调用自动写入进度文件，Agent 自己写时则让位）。
 
 ### Agent 定义
 

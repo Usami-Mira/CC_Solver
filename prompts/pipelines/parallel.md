@@ -57,16 +57,16 @@ REVISE → 回到 Builder（最多 {max_revisions} 次）
 将计划写入 `{workspace}/plan_{i}.md`。
 ```
 
-并行 spawn——**「`&` 派发 + 轮询等待」规范模式**（总则见通用编排器「并行 spawn 与轮询等待」节；等待期间你的每一次回应都必须是 Bash 工具调用，输出纯文本会立即终止会话并害死后台 Planner）。角色名带编号以区分 `debug/.<Role>.result`（编号角色互不覆盖，故同角色也可并行）：
+并行 spawn——**「`&` 派发 + 轮询等待」规范模式**（总则见通用编排器「并行 spawn 与轮询等待」节；等待期间你的每一次回应都必须是 Bash 工具调用，输出纯文本会立即终止会话并害死后台 Planner）。运行时文件按派活隔离（`debug/.Planner_task_planner_{i}.result`），同角色并行互不覆盖：
 
 ```bash
-python3 {project_root}/scripts/spawn.py Planner_1 {workspace} agents/planner task_planner_1.md &
-python3 {project_root}/scripts/spawn.py Planner_2 {workspace} agents/planner task_planner_2.md &
-python3 {project_root}/scripts/spawn.py Planner_3 {workspace} agents/planner task_planner_3.md &
+python3 {project_root}/scripts/spawn.py Planner {workspace} agents/planner task_planner_1.md &
+python3 {project_root}/scripts/spawn.py Planner {workspace} agents/planner task_planner_2.md &
+python3 {project_root}/scripts/spawn.py Planner {workspace} agents/planner task_planner_3.md &
 echo SPAWNED
 ```
 
-然后按规范模式轮询等待（角色名 `Planner_1 Planner_2 Planner_3`，共 {num_planners} 个；重复执行轮询调用直到 `ALL_READY`），再依次读 `debug/.Planner_1.result` … `debug/.Planner_{num_planners}.result`。
+然后按规范模式轮询等待（文件清单列出 `debug/.Planner_task_planner_1.result` … `.Planner_task_planner_{num_planners}.result`，共 {num_planners} 个；重复执行轮询调用直到全部 `READY`），再依次 `cat` 各文件。
 
 ### 阶段 2：Meta-Planner 选择/合并
 

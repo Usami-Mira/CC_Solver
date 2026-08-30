@@ -19,6 +19,7 @@ SKILLS_DIR = PROMPTS_DIR / "skills"
 CONFIG = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
 PIPELINE = CONFIG.get("pipeline", "standard")
 MAX_CONCURRENT = CONFIG.get("max_concurrent_problems", 3)
+MAX_CONCURRENT_AGENTS = CONFIG.get("max_concurrent_agents", 4)   # 同时派活的 sub-Agent 上限（软约束，供用户调）
 MAX_DISPUTES = CONFIG.get("max_disputes", 2)          # 修订争议协议上限（全局）
 MEMORY_GUARD_MODE = CONFIG.get("memory_guard", "quarantine")
 
@@ -37,6 +38,11 @@ DEEP_TIMEOUT = 1800
 MAX_MOTIONS = 6
 MAX_VERIFY_ROUNDS = 3
 MAX_SUBTASKS = 3
+MAX_PHASES = 6            # auto：蓝图阶段数上限
+MAX_SPAWNS = 40           # auto：全程派活总数上限
+MAX_ESCALATIONS = 2       # auto：结构升级次数上限
+MAX_SEARCH_ROUNDS = 4     # auto：搜索块轮数上限
+MAX_DEBATE_ROUNDS = 2     # auto：辩论块轮数上限
 MAX_AUTO_RESUMES = 30   # 监督者自动续跑上限（会话早退但流水线未完成时 --resume 续接）
 
 
@@ -44,7 +50,8 @@ def apply_pipeline_config(name):
     """按 pipeline 名设置模块级配置变量。"""
     global PIPELINE, PIPELINE_CONFIG, MODEL, TIMEOUT, MAX_REVISIONS, AGENT_MODELS
     global MAX_ITERATIONS, MAX_ROUNDS, NUM_PLANNERS, EPHEMERAL_TIMEOUT, DEEP_TIMEOUT, MAX_MOTIONS
-    global MAX_VERIFY_ROUNDS, MAX_SUBTASKS
+    global MAX_VERIFY_ROUNDS, MAX_SUBTASKS, MAX_CONCURRENT_AGENTS
+    global MAX_PHASES, MAX_SPAWNS, MAX_ESCALATIONS, MAX_SEARCH_ROUNDS, MAX_DEBATE_ROUNDS
     PIPELINE = name
     PIPELINE_CONFIG = CONFIG.get("configs", {}).get(name, {})
     MODEL = PIPELINE_CONFIG.get("model", "sonnet")
@@ -60,6 +67,12 @@ def apply_pipeline_config(name):
     MAX_MOTIONS = PIPELINE_CONFIG.get("max_motions", 6)
     MAX_VERIFY_ROUNDS = PIPELINE_CONFIG.get("max_verify_rounds", 3)
     MAX_SUBTASKS = PIPELINE_CONFIG.get("max_subtasks", 3)
+    MAX_CONCURRENT_AGENTS = PIPELINE_CONFIG.get("max_concurrent_agents", MAX_CONCURRENT_AGENTS)
+    MAX_PHASES = PIPELINE_CONFIG.get("max_phases", MAX_PHASES)
+    MAX_SPAWNS = PIPELINE_CONFIG.get("max_spawns", MAX_SPAWNS)
+    MAX_ESCALATIONS = PIPELINE_CONFIG.get("max_escalations", MAX_ESCALATIONS)
+    MAX_SEARCH_ROUNDS = PIPELINE_CONFIG.get("max_search_rounds", MAX_SEARCH_ROUNDS)
+    MAX_DEBATE_ROUNDS = PIPELINE_CONFIG.get("max_debate_rounds", MAX_DEBATE_ROUNDS)
 
 
 apply_pipeline_config(PIPELINE)
@@ -336,42 +349,35 @@ def _tool_use_name_input(event):
     return "", {}
 
 
-def render_tool_lines(name, inp, workspace_abs):
-    """把一个 tool_use 事件渲染成 (主语, 动作) 行列表。
+def console_log(workspace_abs, text):
+    """控制台行同步到 {workspace}/console.log——工作区根目录，用户随时可看运行活动。"""
+    if not workspace_abs or not text:
+        return
+    try:
+        with open(os.path.join(workspace_abs, "console.log"), "a", encoding="utf-8") as f:
+            f.write(f"[{time.strftime('%m-%d %H:%M:%S')}] {text}\n")
+    except OSError:
+        pass
 
-    主语 = 执行动作的角色（Orchestrator / Builder / Theorist(模型名) …）。
-    一条 Bash 里并行 spawn 多个角色时，每个角色单独一行。
+
+def render_tool_lines(name, inp, workspace_abs):
+    """把一个 tool_use 事件渲染成控制台行：**只保留 sub-Agent 的派活事件**。
+
+    监控焦点在 sub-Agent 层：Orchestrator 自己的调度动作（读写/轮询/写任务
+    文件）一律不上屏（全量记录仍在 .orchestrator.log）；sub-Agent 内部的
+    活动（脚本创建、真正的计算命令）由 spawn.py 直接以带路线颜色的行上屏。
     """
-    orch = "Orchestrator"
     if name == "Bash":
         cmd = (inp.get("command") or "").strip()
-        first_line = cmd.splitlines()[0] if cmd else ""
-        spawns = SPAWN_CMD_RE.findall(cmd)
-        if spawns:
-            lines = []
-            for role, _ws, _prompt, task in spawns:
-                note = read_task_note(workspace_abs, task)
-                action = f"开始 ({_short_path(task, workspace_abs)})"
-                if note:
-                    action += f"：{note}"
-                lines.append((f"{role}（{role_model(role)}）", action))
-            return lines
-        m2 = re.match(r"^\s*cat\s*(>>?)\s*(\S+)", first_line)
-        if m2:
-            verb = "追加写" if m2.group(1) == ">>" else "写"
-            return [(orch, f"{verb} {_short_path(m2.group(2), workspace_abs)}")]
-        if re.match(r"^\s*(head|tail|cat|wc|ls)\b", first_line):
-            return [(orch, f"读/查：{first_line[:100]}")]
-        if re.match(r"^\s*git\b", first_line):
-            return [(orch, f"git：{first_line[:100]}")]
-        return [(orch, f"Bash：{first_line[:100]}")]
-    if name in ("Read", "Write", "Edit"):
-        path = _short_path(inp.get("file_path", ""), workspace_abs)
-        verb = {"Read": "读", "Write": "写", "Edit": "改"}[name]
-        return [(orch, f"{verb} {path}")]
-    if name in ("Glob", "Grep"):
-        return [(orch, f"{name}: {str(inp.get('pattern', ''))[:80]}")]
-    return [(orch, name or "tool")]
+        lines = []
+        for role, _ws, _prompt, task in SPAWN_CMD_RE.findall(cmd):
+            note = read_task_note(workspace_abs, task)
+            action = f"开始 ({_short_path(task, workspace_abs)})"
+            if note:
+                action += f"：{note}"
+            lines.append((f"{role}（{role_model(role)}）", action))
+        return lines
+    return []
 
 
 def resume_session_id(workspace):
@@ -462,6 +468,21 @@ def assemble_orchestrator_prompt(workspace):
             "builder": read_agent("builder"),
             "evaluator": read_agent("evaluator"),
         }
+    elif PIPELINE == "auto":
+        # 自适应结构流水线：Assessor 评难度 → Orchestrator 自组蓝图（阶段库拼装）
+        # → 按蓝图逐阶段派活。需要全部角色可供编排。
+        agents_dict = {
+            "assessor": read_agent("assessor"),
+            "planner": read_agent("planner"),
+            "theorist": read_agent("theorist"),
+            "computationalist": read_agent("computationalist"),
+            "experimentalist": read_agent("experimentalist"),
+            "critic": read_agent("critic"),
+            "secretary": read_agent("secretary"),
+            "verifier": read_agent("verifier"),
+            "builder": read_agent("builder"),
+            "evaluator": read_agent("evaluator"),
+        }
     else:
         print(f"Error: unknown pipeline '{PIPELINE}'")
         sys.exit(1)
@@ -496,17 +517,41 @@ def assemble_orchestrator_prompt(workspace):
     prompt = prompt.replace("{max_motions}", str(MAX_MOTIONS))
     prompt = prompt.replace("{max_verify_rounds}", str(MAX_VERIFY_ROUNDS))
     prompt = prompt.replace("{max_subtasks}", str(MAX_SUBTASKS))
+    prompt = prompt.replace("{max_concurrent_agents}", str(MAX_CONCURRENT_AGENTS))
+    prompt = prompt.replace("{max_phases}", str(MAX_PHASES))
+    prompt = prompt.replace("{max_spawns}", str(MAX_SPAWNS))
+    prompt = prompt.replace("{max_escalations}", str(MAX_ESCALATIONS))
+    prompt = prompt.replace("{max_search_rounds}", str(MAX_SEARCH_ROUNDS))
+    prompt = prompt.replace("{max_debate_rounds}", str(MAX_DEBATE_ROUNDS))
     prompt = prompt.replace("{max_disputes}", str(MAX_DISPUTES))
 
     return prompt
+
+
+RUNTIME_FILE = ".runtime_seconds"
+
+
+def read_runtime_base(workspace_abs):
+    """题目已累计的运行秒数（断点续传时把之前会话的时长带入）。
+
+    只累计 run.py 实际在跑的挂钟时间，会话之间的间隔不计。
+    """
+    try:
+        with open(os.path.join(workspace_abs, DEBUG_DIR, RUNTIME_FILE), encoding="utf-8") as f:
+            return max(0.0, float(f.read().strip() or 0))
+    except (OSError, ValueError):
+        return 0.0
 
 
 def newest_artifact_mtime(workspace_abs):
     """工作区顶层 + debug/ + tasks/ 中最新文件的 mtime。
 
     监督者用它判断一次自动续跑是否产生了实际进展（防打转）。
-    排除 .orchestrator* —— 那是 run.py 自己每次启动都会写的文件，
-    不代表 Orchestrator 有实际产出。
+    排除运行框架自己会写的文件——它们的 mtime 更新不代表
+    Orchestrator 有实际产出：
+    - .orchestrator*：run.py 每次启动都会写的会话/日志
+    - console.log：run.py/spawn.py 追加的活动镜像（每次续跑启动必写）
+    - .runtime_seconds：监督者计时心跳（每 30s 一次）
     """
     latest = 0.0
     for base in (workspace_abs,
@@ -518,6 +563,8 @@ def newest_artifact_mtime(workspace_abs):
             continue
         for name in names:
             if name.startswith(".orchestrator"):
+                continue
+            if name == "console.log" or name == RUNTIME_FILE:
                 continue
             p = os.path.join(base, name)
             try:
@@ -535,7 +582,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Physics problem solver with multiple pipelines")
     parser.add_argument("workspace", nargs="?", default="problems/001", help="Problem workspace directory")
-    parser.add_argument("--pipeline", choices=["standard", "parallel", "iterative", "debate", "tree_search", "adaptive", "deep_search"],
+    parser.add_argument("--pipeline", choices=["standard", "parallel", "iterative", "debate", "tree_search", "adaptive", "deep_search", "auto"],
                        help="Override pipeline type from config.json")
     args = parser.parse_args()
 
@@ -601,6 +648,10 @@ def main():
     orch_env = os.environ.copy()
     orch_env["WORKSPACE"] = workspace_abs
     orch_env["WORKSPACE_ROLE"] = "orchestrator"
+    # 运行时文件按派活隔离：spawn.py 据此把 .result/.log/.session/.progress/.metrics
+    # 命名为 .{Role}_{任务名}.* —— 同角色并行派活互不覆盖（在途旧会话的
+    # Orchestrator 进程没有此变量，其派活仍走按角色的旧命名，互不干扰）。
+    orch_env["SPAWN_RUNTIME_BY_TASK"] = "1"
 
     fresh_prompt = (
         f"请解决 {workspace_abs} 中的物理题目。\n"
@@ -609,6 +660,9 @@ def main():
         f"开始前先 cat {workspace_abs}/debug/.state 确认是否有断点（旧布局可能在 {workspace_abs}/.state）；没有则从第一阶段开始。\n"
         f"创建 sub-Agent：Bash 调用 python3 {SCRIPTS_DIR}/spawn.py <Role> {workspace_abs} <prompt_file> <task_file>\n"
         f"spawn.py 必须始终用上面的绝对路径调用——不要 cd 出工作区，也不要用相对路径（相对路径解析进工作区，找不到脚本）。\n"
+        f"运行时文件按派活隔离：派 <Role> 执行 <任务名> 时，汇报写入 debug/.<Role>_<任务名>.result"
+        f"（.log/.session/.progress/.metrics 同此后缀）；轮询与读取时按你派活用的任务名拼出文件名。"
+        f"每次派活的运行时文件互不冲突，同一角色可以多路并行。\n"
         f"会话生命周期：输出不含工具调用的纯文本会立即终止会话——等待 sub-Agent 时必须按"
         f"系统提示「并行 spawn 与轮询等待」节轮询，每次回应都带 Bash 工具调用。\n"
         f"全部阶段完成后，将最终结果写入 {workspace_abs}/final_summary.md。\n"
@@ -619,6 +673,10 @@ def main():
         f"核心纪律不变：你不读题目、不做计算 — 只调度 sub-Agent，只读它们的 .result 汇报。\n"
         f"创建 sub-Agent：Bash 调用 python3 {SCRIPTS_DIR}/spawn.py <Role> {workspace_abs} <prompt_file> <task_file>\n"
         f"spawn.py 必须始终用上面的绝对路径调用——不要 cd 出工作区，也不要用相对路径（相对路径解析进工作区，找不到脚本）。\n"
+        f"运行时文件命名（重要，可能与你会话记忆中的旧命名不同）：新派活一律按派活隔离——"
+        f"派 <Role> 执行 <任务名> 的汇报在 debug/.<Role>_<任务名>.result"
+        f"（.log/.session/.progress/.metrics 同此后缀）；轮询与读取按任务名拼文件名。"
+        f"同一角色可以多路并行。此前会话遗留的无任务名后缀旧文件（如 .Builder.result）视为已消费的历史记录，不再据此派活。\n"
         f"会话生命周期：输出不含工具调用的纯文本会立即终止会话——等待 sub-Agent 时必须按"
         f"系统提示「并行 spawn 与轮询等待」节轮询，每次回应都带 Bash 工具调用。\n"
         f"Workspace（绝对路径）: {workspace_abs}"
@@ -630,6 +688,8 @@ def main():
         f"2. 若中断时有 sub-Agent 在跑：后台 spawn 进程可能已随上轮会话死亡。以 .result 存在与否为准——"
         f"spawn.py 派活时会删除旧 .result，故「文件存在」即「该次派活已完成」；缺失 = 重新派活（同一任务文件，中断的可加 --resume）；\n"
         f"3. 按系统提示协议继续后续流程；需要等待 sub-Agent 时用「并行 spawn 与轮询等待」节的轮询模式。\n"
+        f"运行时文件按派活隔离：汇报在 debug/.<Role>_<任务名>.result（.log/.session/.progress/.metrics 同此后缀），"
+        f"轮询与读取按你派活用的任务名拼文件名；同一角色可多路并行。\n"
         f"核心纪律不变：你不读题目、不做计算 — 只调度 sub-Agent，只读它们的 .result 汇报。"
     )
 
@@ -639,9 +699,21 @@ def main():
     log_path = os.path.join(workspace, DEBUG_DIR, ".orchestrator.log")
     start_time = time.time()
 
+    # 题目累计总运行时长：续传读入以往累计基数，新运行清零。
+    # 进度行的 [HH:MM:SS] 即此累计值（断点前的时间也计入）。
+    runtime_base = read_runtime_base(workspace_abs) if resume_sid else 0.0
+    runtime_file = os.path.join(workspace_abs, DEBUG_DIR, RUNTIME_FILE)
+    try:
+        with open(runtime_file, "w", encoding="utf-8") as rf:
+            rf.write(f"{runtime_base:.0f}")
+    except OSError:
+        pass
+    display_start = start_time - runtime_base
+
     with open(log_path, "a", encoding="utf-8") as log_file:
         mode_desc = f"resume={resume_sid[:8]}" if resume_sid else "fresh"
         print(f"[Orchestrator] pipeline={PIPELINE}, {mode_desc}, started at {time.strftime('%H:%M:%S')}", flush=True)
+        console_log(workspace_abs, f"Orchestrator 启动 · pipeline={PIPELINE} · {mode_desc}")
         log_file.write(f"[start] Orchestrator | pipeline={PIPELINE} | {mode_desc} | {time.strftime('%H:%M:%S')}\n")
         log_file.flush()
 
@@ -683,10 +755,13 @@ def main():
                             tname, tinp = _tool_use_name_input(event)
                             for subject, action in render_tool_lines(tname, tinp, workspace_abs):
                                 print(f"[{ts}] {subject} · {action}", flush=True)
+                                console_log(workspace_abs, f"{subject} · {action}")
                         elif etype == "init":
                             print(f"[{ts}] Orchestrator · 会话开始 {summary}", flush=True)
+                            console_log(workspace_abs, f"Orchestrator · 会话开始 {summary}")
                         elif etype == "result":
                             print(f"[{ts}] Orchestrator · 会话结束 {summary}", flush=True)
+                            console_log(workspace_abs, f"Orchestrator · 会话结束 {summary}")
                         # Write full summary to log
                         log_file.write(f"[{etype}] {summary}\n")
                         log_file.flush()
@@ -700,6 +775,7 @@ def main():
 
             if pump_thread.is_alive():
                 print(f"[Orchestrator] timeout after {TIMEOUT}s, killing process group...")
+                console_log(workspace_abs, f"Orchestrator 超时（{TIMEOUT}s），监督者将续跑")
                 kill_process_group(proc)
                 progress_stop.set()
                 sys.exit(1)
@@ -721,16 +797,26 @@ def main():
         def progress_monitor():
             last_key = None
             last_print = 0.0
+            last_save = 0.0
             while not progress_stop.wait(5):
+                now = time.time()
+                # 定期回写累计时长：进程被杀/断电也不丢超过 30s 的账
+                try:
+                    if now - last_save >= 30:
+                        with open(runtime_file, "w", encoding="utf-8") as rf:
+                            rf.write(f"{runtime_base + now - start_time:.0f}")
+                        last_save = now
+                except OSError:
+                    pass
                 try:
                     st = parse_state_file(find_state_file(workspace))
                     if not st:
                         continue
                     key = json.dumps(st, sort_keys=True)
-                    now = time.time()
                     if key != last_key or now - last_print >= 300:
-                        line = render_progress(st, start_time, read_progress_lines(workspace))
+                        line = render_progress(st, display_start, read_progress_lines(workspace))
                         print(line, flush=True)
+                        console_log(workspace_abs, line)
                         log_file.write(line + "\n")
                         log_file.flush()
                         last_key = key
@@ -780,6 +866,7 @@ def main():
                 print("[Orchestrator] 无可续接的会话 id——中止")
                 break
             print(f"[Orchestrator] 会话结束但流水线未完成——自动续跑 {resumes}/{MAX_AUTO_RESUMES}（session {sid[:8]}）")
+            console_log(workspace_abs, f"会话结束但流水线未完成——自动续跑 {resumes}/{MAX_AUTO_RESUMES}")
             log_file.write(f"[auto-resume] #{resumes} | {time.strftime('%H:%M:%S')}\n")
             log_file.flush()
             before = newest_artifact_mtime(workspace_abs)
@@ -795,10 +882,18 @@ def main():
         progress_stop.set()
         progress_thread.join(timeout=5)
         elapsed = time.time() - start_time
+        total_elapsed = runtime_base + elapsed
+        try:
+            with open(runtime_file, "w", encoding="utf-8") as rf:
+                rf.write(f"{total_elapsed:.0f}")
+        except OSError:
+            pass
 
-        log_file.write(f"[done] Orchestrator | pipeline={PIPELINE} | {time.strftime('%H:%M:%S')} | elapsed={elapsed:.1f}s resumes={resumes}\n")
+        log_file.write(f"[done] Orchestrator | pipeline={PIPELINE} | {time.strftime('%H:%M:%S')} | "
+                       f"session={elapsed:.1f}s total={total_elapsed:.1f}s resumes={resumes}\n")
 
-    print(f"\n[Orchestrator] done ({elapsed:.0f}s)")
+    print(f"\n[Orchestrator] done（本次会话 {elapsed:.0f}s，题目累计 {total_elapsed:.0f}s）")
+    console_log(workspace_abs, f"运行结束（本次会话 {elapsed:.0f}s，题目累计 {total_elapsed:.0f}s，续跑 {resumes} 次）")
 
     # 记忆防火墙：运行后审计（quarantine 模式会把运行期间的改动捕获并重置）
     mg_post = memory_guard.post_run(workspace, baselines=mg_pre.get("baselines"),
